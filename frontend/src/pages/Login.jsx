@@ -25,18 +25,18 @@ const Login = () => {
       login(response.data.token, response.data.user);
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || 'An error occurred during login');
+      setError(err.response?.data?.error || 'Ein Fehler ist beim Anmelden aufgetreten');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111827' }}>
-      <Card style={{ width: '100%', maxWidth: 420, borderRadius: 16, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '10px 0' }}>
+    <Layout style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5' }}>
+      <Card style={{ width: '100%', maxWidth: 420, borderRadius: 16, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: '10px 0' }} bordered={false}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title level={2} style={{ margin: 0 }}>Welcome Back</Title>
-          <Text type="secondary">Login to manage your household.</Text>
+          <Title level={2} style={{ margin: 0 }}>Willkommen zurück</Title>
+          <Text type="secondary">Melden Sie sich an, um Ihren Haushalt zu verwalten.</Text>
         </div>
 
         {error && (
@@ -46,28 +46,28 @@ const Login = () => {
         <Form name="login_form" onFinish={onFinish} layout="vertical" size="large">
           <Form.Item
             name="email"
-            rules={[{ required: true, message: 'Please input your Email!' }, { type: 'email', message: 'Please enter a valid email!' }]}
+            rules={[{ required: true, message: 'Bitte geben Sie Ihre E-Mail-Adresse ein!' }, { type: 'email', message: 'Bitte geben Sie eine gültige E-Mail-Adresse ein!' }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="Email address" />
+            <Input prefix={<UserOutlined />} placeholder="E-Mail-Adresse" />
           </Form.Item>
 
           <Form.Item
             name="password"
-            rules={[{ required: true, message: 'Please input your Password!' }]}
+            rules={[{ required: true, message: 'Bitte geben Sie Ihr Passwort ein!' }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
+            <Input.Password prefix={<LockOutlined />} placeholder="Passwort" />
           </Form.Item>
 
           <Form.Item>
             <Button type="primary" htmlType="submit" block loading={loading}>
-              Sign in
+              Anmelden
             </Button>
           </Form.Item>
         </Form>
 
         <div style={{ textAlign: 'center', marginTop: 16 }}>
           <Text type="secondary">
-            Don't have an account? <Link to="/register" style={{ color: '#1677ff' }}>Register here</Link>
+            Noch kein Konto? <Link to="/register" style={{ color: '#1677ff' }}>Hier registrieren</Link>
           </Text>
         </div>
       </Card>

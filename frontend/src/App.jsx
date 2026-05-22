@@ -1,28 +1,14 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, theme, Layout, Typography, Button, Card } from 'antd';
+import { ConfigProvider } from 'antd';
+import deDE from 'antd/locale/de_DE';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
-
-const { Title, Text } = Typography;
-
-const Dashboard = () => {
-  const { user, logout } = useAuth();
-  return (
-    <Layout style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111827' }}>
-      <Card style={{ width: 400, textAlign: 'center', borderRadius: 16, boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-        <Title level={2}>Welcome {user?.firstName}!</Title>
-        <Text style={{ display: 'block', marginBottom: 24, fontSize: 16 }}>
-          Role: <strong style={{ color: '#1677ff' }}>{user?.role}</strong>
-        </Text>
-        <Button type="primary" danger block size="large" onClick={logout}>
-          Logout
-        </Button>
-      </Card>
-    </Layout>
-  );
-};
+import DashboardLayout from './components/DashboardLayout';
+import PropertyView from './pages/PropertyView';
+import Profile from './pages/Profile';
+import DashboardHome from './pages/DashboardHome';
 
 const ProtectedRoute = ({ children }) => {
   const { token } = useAuth();
@@ -35,11 +21,13 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <ConfigProvider 
+      locale={deDE}
       theme={{ 
-        algorithm: theme.darkAlgorithm, 
         token: { 
           colorPrimary: '#1677ff',
-          borderRadius: 8
+          borderRadius: 8,
+          colorBgContainer: '#ffffff',
+          colorBgLayout: '#f0f2f5'
         } 
       }}
     >
@@ -48,11 +36,20 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            
             <Route path="/" element={
               <ProtectedRoute>
-                <Dashboard />
+                <DashboardLayout />
               </ProtectedRoute>
-            } />
+            }>
+              <Route index element={<Navigate to="/property" replace />} />
+              <Route path="property" element={<PropertyView />} />
+              <Route path="taxes" element={<DashboardHome title="Steuerakt" />} />
+              <Route path="maintenance" element={<DashboardHome title="Instandhaltung" />} />
+              <Route path="documents" element={<DashboardHome title="Dokumente" />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
+
           </Routes>
         </BrowserRouter>
       </AuthProvider>

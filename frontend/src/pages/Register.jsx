@@ -20,22 +20,22 @@ const Register = () => {
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setError(err.response?.data?.error || 'An error occurred during registration');
+      setError(err.response?.data?.error || 'Ein Fehler ist bei der Registrierung aufgetreten');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111827', padding: '20px' }}>
-      <Card style={{ width: '100%', maxWidth: 450, borderRadius: 16, boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+    <Layout style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', padding: '20px' }}>
+      <Card style={{ width: '100%', maxWidth: 480, borderRadius: 16, boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} bordered={false}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title level={2} style={{ margin: 0 }}>Create Account</Title>
-          <Text type="secondary">Join our household management platform.</Text>
+          <Title level={2} style={{ margin: 0 }}>Konto erstellen</Title>
+          <Text type="secondary">Treten Sie unserer Haushaltsverwaltungs-Plattform bei.</Text>
         </div>
 
         {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 24 }} />}
-        {success && <Alert message="Registration successful! Redirecting to login..." type="success" showIcon style={{ marginBottom: 24 }} />}
+        {success && <Alert message="Registrierung erfolgreich! Weiterleitung zum Login..." type="success" showIcon style={{ marginBottom: 24 }} />}
 
         <Form 
           name="register_form" 
@@ -46,39 +46,39 @@ const Register = () => {
         >
           <Row gutter={12}>
             <Col span={12}>
-              <Form.Item name="firstName" rules={[{ required: true, message: 'First name is required' }]}>
-                <Input placeholder="First Name" />
+              <Form.Item name="firstName" rules={[{ required: true, message: 'Vorname ist erforderlich' }]}>
+                <Input placeholder="Vorname" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="lastName" rules={[{ required: true, message: 'Last name is required' }]}>
-                <Input placeholder="Last Name" />
+              <Form.Item name="lastName" rules={[{ required: true, message: 'Nachname ist erforderlich' }]}>
+                <Input placeholder="Nachname" />
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item name="username" rules={[{ required: true, message: 'Username is required' }]}>
-            <Input prefix={<IdcardOutlined />} placeholder="Username" />
+          <Form.Item name="username" rules={[{ required: true, message: 'Benutzername ist erforderlich' }]}>
+            <Input prefix={<IdcardOutlined />} placeholder="Benutzername" />
           </Form.Item>
 
-          <Form.Item name="email" rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
-            <Input prefix={<MailOutlined />} placeholder="Email address" />
+          <Form.Item name="email" rules={[{ required: true, message: 'E-Mail ist erforderlich' }, { type: 'email', message: 'Ungültige E-Mail-Adresse' }]}>
+            <Input prefix={<MailOutlined />} placeholder="E-Mail-Adresse" />
           </Form.Item>
 
-          <Form.Item name="password" rules={[{ required: true, message: 'Password is required' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" />
+          <Form.Item name="password" rules={[{ required: true, message: 'Passwort ist erforderlich' }]}>
+            <Input.Password prefix={<LockOutlined />} placeholder="Passwort" />
           </Form.Item>
 
-          <Form.Item name="role" label="Select Role" rules={[{ required: true }]}>
-            <Radio.Group style={{ width: '100%' }}>
+          <Form.Item name="role" label="Rolle auswählen" rules={[{ required: true }]}>
+            <Radio.Group style={{ width: '100%' }} optionType="button" buttonStyle="solid">
               <Row gutter={12}>
                 <Col span={12}>
-                  <Radio.Button value="HAUSBESITZER" style={{ width: '100%', textAlign: 'center' }}>
+                  <Radio.Button value="HAUSBESITZER" style={{ width: '100%', textAlign: 'center', borderRadius: '8px 0 0 8px' }}>
                     Hausbesitzer
                   </Radio.Button>
                 </Col>
                 <Col span={12}>
-                  <Radio.Button value="PROFESSIONIST" style={{ width: '100%', textAlign: 'center' }}>
+                  <Radio.Button value="PROFESSIONIST" style={{ width: '100%', textAlign: 'center', borderRadius: '0 8px 8px 0' }}>
                     Professionist
                   </Radio.Button>
                 </Col>
@@ -88,14 +88,14 @@ const Register = () => {
 
           <Form.Item style={{ marginBottom: 12 }}>
             <Button type="primary" htmlType="submit" block loading={loading} disabled={success}>
-              Register
+              Registrieren
             </Button>
           </Form.Item>
         </Form>
 
         <div style={{ textAlign: 'center' }}>
           <Text type="secondary">
-            Already have an account? <Link to="/login" style={{ color: '#1677ff' }}>Login here</Link>
+            Bereits ein Konto? <Link to="/login" style={{ color: '#1677ff' }}>Hier anmelden</Link>
           </Text>
         </div>
       </Card>

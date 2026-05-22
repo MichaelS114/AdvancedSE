@@ -89,4 +89,37 @@ router.post('/login', async (req, res) => {
   }
 });
 
+const { authenticateToken } = require('../middleware/auth');
+
+// PUT /api/auth/password - Passwort ändern
+router.put('/password', authenticateToken, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    
+    // Find user
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+
+    // Verify old password
+    const validPassword = await bcrypt.compare(oldPassword, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Das alte Passwort ist falsch' });
+    }
+
+    // Hash and update new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { password: hashedPassword }
+    });
+
+    res.json({ success: true, message: 'Passwort erfolgreich geändert' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Serverfehler beim Ändern des Passworts' });
+  }
+});
+
 module.exports = router;

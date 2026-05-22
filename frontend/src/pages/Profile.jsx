@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Form, Input, Button, Typography, message } from 'antd';
+import { Card, Form, Input, Button, Typography, App } from 'antd';
 import { LockOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ const Profile = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const { token, user } = useAuth();
+  const { message } = App.useApp();
 
   const onFinish = async (values) => {
     setLoading(true);

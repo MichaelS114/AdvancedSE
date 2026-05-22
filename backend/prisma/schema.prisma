@@ -44,6 +44,7 @@ model Room {
   propertyId       String
   property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   name             String
+  type             String?
   area             Float
   floorCovering    String
   wallFinish       String

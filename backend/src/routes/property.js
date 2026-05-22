@@ -38,6 +38,11 @@ router.put('/', authenticateToken, async (req, res) => {
       cadastralMunicipality 
     } = req.body;
 
+    const userExists = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!userExists) {
+      return res.status(401).json({ error: 'Benutzerkonto wurde gelöscht oder Datenbank zurückgesetzt. Bitte erneut anmelden.' });
+    }
+
     const property = await prisma.property.upsert({
       where: { userId: req.user.id },
       update: {

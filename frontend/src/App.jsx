@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, App as AntApp } from 'antd';
 import deDE from 'antd/locale/de_DE';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
@@ -31,28 +31,29 @@ function App() {
         } 
       }}
     >
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            
-            <Route path="/" element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }>
-              <Route index element={<Navigate to="/property" replace />} />
-              <Route path="property" element={<PropertyView />} />
-              <Route path="taxes" element={<DashboardHome title="Steuerakt" />} />
-              <Route path="maintenance" element={<DashboardHome title="Instandhaltung" />} />
-              <Route path="documents" element={<DashboardHome title="Dokumente" />} />
-              <Route path="profile" element={<Profile />} />
-            </Route>
-
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+      <AntApp>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }>
+                <Route index element={<Navigate to="/property" replace />} />
+                <Route path="property" element={<PropertyView />} />
+                <Route path="taxes" element={<DashboardHome title="Steuerakt" />} />
+                <Route path="maintenance" element={<DashboardHome title="Instandhaltung" />} />
+                <Route path="documents" element={<DashboardHome title="Dokumente" />} />
+                <Route path="profile" element={<Profile />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </AntApp>
     </ConfigProvider>
   );
 }

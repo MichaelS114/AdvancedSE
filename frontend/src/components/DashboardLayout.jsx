@@ -8,7 +8,9 @@ import {
   FolderOpenOutlined, 
   UserOutlined,
   LogoutOutlined,
-  KeyOutlined
+  KeyOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -72,21 +74,26 @@ const DashboardLayout = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider 
+        trigger={null}
         collapsible 
         collapsed={collapsed} 
-        onCollapse={(value) => setCollapsed(value)}
         theme="light"
         style={{ borderRight: `1px solid ${token.colorBorderSecondary}` }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
           <div style={{ padding: '16px', textAlign: 'center', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
-            {isHausbesitzer ? (
-              <Avatar size={collapsed ? 32 : 64} icon={<HomeOutlined />} style={{ backgroundColor: token.colorPrimary }} />
-            ) : (
-              <Avatar size={collapsed ? 32 : 64} icon={<ToolOutlined />} style={{ backgroundColor: '#fa8c16' }} />
-            )}
+            <img 
+              src="/logo.png" 
+              alt="Logo" 
+              style={{ 
+                width: collapsed ? 32 : 80, 
+                height: collapsed ? 32 : 80, 
+                objectFit: 'contain',
+                marginBottom: collapsed ? 0 : 8 
+              }} 
+            />
             {!collapsed && (
-              <div style={{ marginTop: 12 }}>
+              <div>
                 <Text strong style={{ display: 'block' }}>{isHausbesitzer ? 'Hausbesitzer' : 'Professionist'}</Text>
               </div>
             )}
@@ -104,6 +111,14 @@ const DashboardLayout = () => {
           </div>
 
           <div style={{ padding: '16px', borderTop: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgContainer }}>
+            <div 
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginBottom: 16, color: token.colorTextSecondary }}
+              onClick={() => setCollapsed(!collapsed)}
+              title={collapsed ? "Ausklappen" : "Einklappen"}
+            >
+              {collapsed ? <MenuUnfoldOutlined style={{ fontSize: '18px' }} /> : <MenuFoldOutlined style={{ fontSize: '18px' }} />}
+            </div>
+            
             <Dropdown menu={userMenu} trigger={['click']} placement="topLeft">
               <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', justifyContent: collapsed ? 'center' : 'flex-start' }}>
                 <Avatar icon={<UserOutlined />} />

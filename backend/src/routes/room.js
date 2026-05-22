@@ -34,12 +34,13 @@ router.get('/', authenticateToken, verifyPropertyOwnership, async (req, res) => 
 // POST /api/properties/:propertyId/rooms
 router.post('/', authenticateToken, verifyPropertyOwnership, async (req, res) => {
   try {
-    const { name, area, floorCovering, wallFinish, notes } = req.body;
+    const { name, type, area, floorCovering, wallFinish, notes } = req.body;
     
     const room = await prisma.room.create({
       data: {
         propertyId: req.params.propertyId,
         name,
+        type,
         area: parseFloat(area),
         floorCovering,
         wallFinish,
@@ -56,7 +57,7 @@ router.post('/', authenticateToken, verifyPropertyOwnership, async (req, res) =>
 // PUT /api/rooms/:id (global router without propertyId param initially, handled differently below if needed)
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
-    const { name, area, floorCovering, wallFinish, notes } = req.body;
+    const { name, type, area, floorCovering, wallFinish, notes } = req.body;
     
     // Check ownership
     const room = await prisma.room.findUnique({
@@ -71,6 +72,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
       where: { id: req.params.id },
       data: {
         name,
+        type,
         area: parseFloat(area),
         floorCovering,
         wallFinish,

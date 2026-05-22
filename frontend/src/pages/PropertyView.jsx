@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Form, Input, InputNumber, Button, Card, Divider, Row, Col, message, Table, Modal, Progress, Typography, Space } from 'antd';
+import { Form, Input, InputNumber, Select, Button, Card, Divider, Row, Col, App, Table, Modal, Progress, Typography, Space } from 'antd';
 import { SaveOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import RoomTreemap from '../components/RoomTreemap';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
 
 const PropertyView = () => {
   const { token } = useAuth();
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [roomForm] = Form.useForm();
   const [propertyId, setPropertyId] = useState(null);
@@ -112,10 +115,9 @@ const PropertyView = () => {
 
   const roomColumns = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
+    { title: 'Typ', dataIndex: 'type', key: 'type' },
     { title: 'Fläche (m²)', dataIndex: 'area', key: 'area' },
-    { title: 'Bodenbelag', dataIndex: 'floorCovering', key: 'floorCovering' },
-    { title: 'Wandbeschaffenheit', dataIndex: 'wallFinish', key: 'wallFinish' },
-    { title: 'Notizen', dataIndex: 'notes', key: 'notes' },
+    { title: 'Boden', dataIndex: 'floorCovering', key: 'floorCovering' },
     {
       title: 'Aktionen',
       key: 'actions',
@@ -132,75 +134,85 @@ const PropertyView = () => {
     <div>
       <Title level={2}>Objekt verwalten</Title>
       
-      {/* US 1.1: Gebäude-Basisdaten */}
-      <Card title="Gebäude-Basisdaten" bordered={false} style={{ marginBottom: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-        <Form form={form} layout="vertical" onFinish={onSaveProperty}>
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Item name="address" label="Adresse" rules={[{ required: true, message: 'Adresse ist erforderlich' }]}>
-                <Input placeholder="Musterstraße 1, 1234 Musterstadt" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="plotArea" label="Grundstücksfläche (m²)" rules={[{ required: true, message: 'Erforderlich' }]}>
-                <InputNumber style={{ width: '100%' }} min={0} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="livingArea" label="Wohnfläche (m²)" rules={[{ required: true, message: 'Erforderlich' }]}>
-                <InputNumber style={{ width: '100%' }} min={0} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="usableArea" label="Nutzfläche (m²)" rules={[{ required: true, message: 'Erforderlich' }]}>
-                <InputNumber style={{ width: '100%' }} min={0} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="constructionYear" label="Baujahr" rules={[{ required: true, message: 'Erforderlich' }]}>
-                <InputNumber style={{ width: '100%' }} min={1800} max={new Date().getFullYear()} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="plotNumber" label="Grundstücksnummer (EZ) - Optional">
-                <Input placeholder="Optional" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="cadastralMunicipality" label="Katastralgemeinde - Optional">
-                <Input placeholder="Optional" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
-            Speichern
-          </Button>
-        </Form>
-      </Card>
+      <Row gutter={24}>
+        <Col xs={24} lg={12}>
+          {/* US 1.1: Gebäude-Basisdaten */}
+          <Card title="Gebäude-Basisdaten" bordered={false} style={{ marginBottom: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <Form form={form} layout="vertical" onFinish={onSaveProperty}>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.Item name="address" label="Adresse" rules={[{ required: true, message: 'Adresse ist erforderlich' }]}>
+                    <Input placeholder="Musterstraße 1, 1234 Musterstadt" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="plotArea" label="Grundstücksfläche (m²)" rules={[{ required: true, message: 'Erforderlich' }]}>
+                    <InputNumber style={{ width: '100%' }} min={0} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="livingArea" label="Wohnfläche (m²)" rules={[{ required: true, message: 'Erforderlich' }]}>
+                    <InputNumber style={{ width: '100%' }} min={0} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="usableArea" label="Nutzfläche (m²)" rules={[{ required: true, message: 'Erforderlich' }]}>
+                    <InputNumber style={{ width: '100%' }} min={0} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="constructionYear" label="Baujahr" rules={[{ required: true, message: 'Erforderlich' }]}>
+                    <InputNumber style={{ width: '100%' }} min={1800} max={new Date().getFullYear()} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="plotNumber" label="EZ (Optional)">
+                    <Input placeholder="Optional" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="cadastralMunicipality" label="Katastralgemeinde (Optional)">
+                    <Input placeholder="Optional" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
+                Speichern
+              </Button>
+            </Form>
+          </Card>
 
-      {/* US 1.2: Raumbuch */}
-      <Card title="Raumbuch" bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} 
-        extra={<Button type="dashed" icon={<PlusOutlined />} onClick={() => handleOpenRoomModal()}>Raum hinzufügen</Button>}
-      >
-        <div style={{ marginBottom: 24 }}>
-          <Text strong>Raumflächen vs Wohnfläche:</Text>
-          <Progress 
-            percent={areaPercentage} 
-            status={isAreaExceeded ? 'exception' : 'active'} 
-            format={() => `${totalRoomArea} / ${totalLivingArea || 0} m²`}
-            strokeColor={isAreaExceeded ? '#ff4d4f' : '#1677ff'}
-          />
-          {isAreaExceeded && <Text type="danger">Warnung: Die Summe der Raumflächen überschreitet die angegebene Gesamtwohnfläche!</Text>}
-        </div>
+          {/* US 1.2: Raumbuch */}
+          <Card title="Raumbuch" bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} 
+            extra={<Button type="dashed" icon={<PlusOutlined />} onClick={() => handleOpenRoomModal()}>Raum hinzufügen</Button>}
+          >
+            <div style={{ marginBottom: 24 }}>
+              <Text strong>Raumflächen vs Wohnfläche:</Text>
+              <Progress 
+                percent={areaPercentage} 
+                status={isAreaExceeded ? 'exception' : 'active'} 
+                format={() => `${totalRoomArea} / ${totalLivingArea || 0} m²`}
+                strokeColor={isAreaExceeded ? '#ff4d4f' : '#1677ff'}
+              />
+              {isAreaExceeded && <Text type="danger">Warnung: Die Summe der Raumflächen überschreitet die angegebene Gesamtwohnfläche!</Text>}
+            </div>
 
-        <Table 
-          columns={roomColumns} 
-          dataSource={rooms} 
-          rowKey="id" 
-          pagination={false}
-          locale={{ emptyText: 'Noch keine Räume angelegt.' }}
-        />
-      </Card>
+            <Table 
+              columns={roomColumns} 
+              dataSource={rooms} 
+              rowKey="id" 
+              pagination={{ pageSize: 5 }}
+              size="small"
+              locale={{ emptyText: 'Noch keine Räume angelegt.' }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={12}>
+          {/* Proportionale Raumaufteilung */}
+          <RoomTreemap rooms={rooms} livingArea={totalLivingArea} />
+        </Col>
+      </Row>
 
       <Modal
         title={editingRoomId ? "Raum bearbeiten" : "Neuen Raum hinzufügen"}
@@ -213,6 +225,16 @@ const PropertyView = () => {
           <Form.Item name="name" label="Raumname" rules={[{ required: true, message: 'Name ist erforderlich' }]}>
             <Input placeholder='z.B. "Bad OG"' />
           </Form.Item>
+          <Form.Item name="type" label="Raumtyp" rules={[{ required: true, message: 'Typ ist erforderlich' }]}>
+            <Select placeholder="Bitte auswählen">
+              <Option value="Bad">Bad</Option>
+              <Option value="Schlafzimmer">Schlafzimmer</Option>
+              <Option value="Wohnbereich">Wohnbereich</Option>
+              <Option value="Küche">Küche</Option>
+              <Option value="Flur">Flur</Option>
+              <Option value="Sonstiges">Sonstiges</Option>
+            </Select>
+          </Form.Item>
           <Form.Item name="area" label="Fläche (m²)" rules={[{ required: true, message: 'Fläche ist erforderlich' }]}>
             <InputNumber style={{ width: '100%' }} min={0} />
           </Form.Item>
@@ -223,7 +245,7 @@ const PropertyView = () => {
             <Input placeholder='z.B. "Gestrichen"' />
           </Form.Item>
           <Form.Item name="notes" label="Notizen">
-            <Input.TextArea placeholder='z.B. "Farbcode Wand: RAL 9010"' rows={3} />
+            <Input.TextArea placeholder='z.B. "Farbcode Wand: RAL 9010"' rows={2} />
           </Form.Item>
           <div style={{ textAlign: 'right' }}>
             <Space>

@@ -11,22 +11,72 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  firstName String
-  lastName  String
-  username  String    @unique
-  email     String    @unique
-  password  String
-  role      String    @default("HAUSBESITZER") // HAUSBESITZER or PROFESSIONIST
-  property  Property?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String       @id @default(uuid())
+  firstName   String
+  lastName    String
+  username    String       @unique
+  email       String       @unique
+  password    String
+  role        String       @default("HAUSBESITZER") // HAUSBESITZER or PROFESSIONIST
+  property    Property?
+  contractors Contractor[]
+  homes       UserHome[]
+  projects    Project[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model UserHome {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String
+  addressId   String?
+  address     Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([addressId])
+}
+
+model Address {
+  id                    String     @id @default(uuid())
+  street                String
+  houseNumber           String?
+  postalCode            String
+  city                  String
+  country               String     @default("AT")
+  cadastralMunicipality String?
+  plotNumber            String?
+  homes                 UserHome[]
+  documents             Document[]
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+}
+
+model Money {
+  id        String     @id @default(uuid())
+  amount    Decimal
+  currency  String     @default("EUR")
+  label     String?
+  documents Document[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model ProjectStatus {
+  code      String   @id
+  label     String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Property {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id])
+  id                    String            @id @default(uuid())
+  userId                String            @unique
+  user                  User              @relation(fields: [userId], references: [id])
   address               String
   plotArea              Float
   livingArea            Float
@@ -35,20 +85,237 @@ model Property {
   plotNumber            String?
   cadastralMunicipality String?
   rooms                 Room[]
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  municipalTaxes        MunicipalTax[]
+  reminders             Reminder[]
+  documents             Document[]
+  projects              Project[]
+  insurancePolicies     InsurancePolicy[]
+  insuranceClaims       InsuranceClaim[]
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 }
 
 model Room {
-  id               String   @id @default(uuid())
-  propertyId       String
-  property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  name             String
-  type             String?
-  area             Float
-  floorCovering    String
-  wallFinish       String
-  notes            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id            String   @id @default(uuid())
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name          String
+  type          String?
+  area          Float
+  floorCovering String
+  wallFinish    String
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Reminder {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  title      String
+  dueDate    DateTime
+  remindAt   DateTime
+  status     String   @default("OPEN")
+  sourceType String?
+  sourceId   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  municipalTax MunicipalTax?
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  fileName     String
+  mimeType     String
+  dataUrl      String
+  documentType String
+  title        String?
+  fileSize     Int?
+  url          String?
+  addressId    String?
+  address      Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  moneyId      String?
+  money        Money?   @relation(fields: [moneyId], references: [id], onDelete: SetNull)
+  sourceType   String?
+  sourceId     String?
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  municipalTaxes MunicipalTax[]
+
+  @@index([projectId])
+}
+
+model MunicipalTax {
+  id         String    @id @default(uuid())
+  propertyId String
+  property   Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  type       String
+  amount     Float
+  interval   String
+  dueDate    DateTime
+  notes      String?
+  reminderId String?   @unique
+  reminder   Reminder? @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model InsurancePolicy {
+  id            String   @id @default(uuid())
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  provider      String
+  policyNumber  String
+  hotline       String?
+  deductible    Float?
+  pdfDocumentId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([propertyId])
+  @@index([provider])
+}
+
+model InsuranceClaim {
+  id          String   @id @default(uuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  claimDate   DateTime
+  type        String
+  description String
+  exportToken String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([propertyId])
+  @@index([claimDate])
+  @@index([type])
+}
+
+model Contractor {
+  id            String             @id @default(uuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName   String
+  trade         String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  experience    String?
+  averageRating Float?
+  ratingCount   Int?
+  offers        Offer[]
+  reviews       ContractorReview[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([trade])
+}
+
+model Project {
+  id                        String             @id @default(uuid())
+  userId                    String
+  user                      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId                String?
+  property                  Property?          @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  title                     String
+  category                  String             @default("Sanierung")
+  description               String?
+  targetBudget              Float              @default(0)
+  desiredStartDate          DateTime?
+  desiredDeadline           DateTime?
+  status                    String             @default("IN_PLANUNG")
+  documentReference         String?
+  documents                 Document[]
+  offers                    Offer[]
+  reviews                   ContractorReview[]
+  acceptedOfferId           String?
+  orderConfirmationFileName String?
+  orderConfirmationDataUrl  String?
+  finalContractFileName     String?
+  finalContractDataUrl      String?
+  finalInvoiceAmount        Float?
+  finalInvoiceFileName      String?
+  finalInvoiceDataUrl       String?
+  invoiceDeviationEuro      Float?
+  invoiceDeviationPercent   Float?
+  invoiceDeviationWarning   Boolean            @default(false)
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([category])
+}
+
+model Offer {
+  id                String         @id @default(uuid())
+  projectId         String
+  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contractorId      String
+  contractor        Contractor     @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  status            String         @default("PENDING")
+  amount            Float
+  currency          String         @default("EUR")
+  validUntil        DateTime?
+  scopeDescription  String         @default("")
+  availabilityStart DateTime?
+  durationDays      Int            @default(0)
+  notes             String?
+  pdfFileName       String?
+  pdfMimeType       String?
+  pdfDataUrl        String?
+  services          OfferService[]
+  acceptedAt        DateTime?
+  rejectedAt        DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([projectId])
+  @@index([contractorId])
+  @@index([status])
+}
+
+model OfferService {
+  id          String   @id @default(uuid())
+  offerId     String
+  offer       Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+
+  @@index([offerId])
+  @@index([type])
+}
+
+model ContractorReview {
+  id            String     @id @default(uuid())
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contractorId  String
+  contractor    Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  priceFaithful Int
+  punctuality   Int
+  speed         Int
+  quality       Int
+  average       Float
+  notes         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([projectId, contractorId])
+  @@index([contractorId])
 }

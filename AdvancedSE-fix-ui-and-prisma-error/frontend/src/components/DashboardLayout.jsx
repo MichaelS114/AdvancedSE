@@ -1,21 +1,25 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Dropdown, Avatar, Typography, Space, theme } from 'antd';
+import { useState } from 'react';
+import { Layout, Menu, Dropdown, Avatar, Typography, theme } from 'antd';
 import { 
   HomeOutlined, 
-  ToolOutlined, 
+  DashboardOutlined,
   FileTextOutlined, 
+  FileProtectOutlined,
+  ProjectOutlined,
   SettingOutlined, 
   FolderOpenOutlined, 
   UserOutlined,
   LogoutOutlined,
   KeyOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  ContactsOutlined,
+  SafetyCertificateOutlined
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const { Header, Sider, Content } = Layout;
+const { Sider, Content } = Layout;
 const { Text } = Typography;
 
 const DashboardLayout = () => {
@@ -29,6 +33,11 @@ const DashboardLayout = () => {
 
   const menuItems = [
     {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard'
+    },
+    {
       key: '/property',
       icon: <HomeOutlined />,
       label: 'Objekt'
@@ -41,7 +50,29 @@ const DashboardLayout = () => {
     {
       key: '/maintenance',
       icon: <SettingOutlined />,
-      label: 'Instandhaltung'
+      label: 'Instandhaltung',
+      children: [
+        {
+          key: '/projects',
+          icon: <ProjectOutlined />,
+          label: 'Projekte'
+        },
+        {
+          key: '/offers',
+          icon: <FileProtectOutlined />,
+          label: 'Angebote'
+        },
+        {
+          key: '/insurance',
+          icon: <SafetyCertificateOutlined />,
+          label: 'Versicherung'
+        },
+        {
+          key: '/contractors',
+          icon: <ContactsOutlined />,
+          label: 'Handwerker'
+        }
+      ]
     },
     {
       key: '/documents',

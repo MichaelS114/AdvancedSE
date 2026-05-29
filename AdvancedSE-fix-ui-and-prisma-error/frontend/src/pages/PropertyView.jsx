@@ -6,18 +6,17 @@ import {
   Select,
   Button,
   Card,
+  Descriptions,
   Row,
   Col,
   App,
-  Table,
   Modal,
   Progress,
   Typography,
   Space,
   Statistic,
   Tag,
-  Popconfirm,
-  Empty
+  Popconfirm
 } from 'antd';
 import {
   SaveOutlined,
@@ -31,10 +30,13 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import EntityWorkspace from '../components/common/EntityWorkspace';
 import RoomTreemap from '../components/RoomTreemap';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+const ROOM_TYPES = ['Bad', 'Schlafzimmer', 'Wohnbereich', 'Küche', 'Flur', 'Sonstiges'];
 
 const PropertyView = () => {
   const { token } = useAuth();
@@ -189,6 +191,8 @@ const PropertyView = () => {
     }
   ];
 
+  const roomTypeFilters = ROOM_TYPES.map((type) => ({ label: type, value: type }));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -300,13 +304,25 @@ const PropertyView = () => {
               {isAreaExceeded && <Text type="danger">Die Summe der Raumflächen überschreitet die angegebene Wohnfläche.</Text>}
             </div>
 
-            <Table
+            <EntityWorkspace
+              title="Räume"
+              description="Gemeinsames Listen-, Such-, Filter- und Detailmuster für Objektbereiche."
               columns={roomColumns}
-              dataSource={rooms}
+              items={rooms}
               rowKey="id"
-              pagination={{ pageSize: 5 }}
-              size="middle"
-              locale={{ emptyText: <Empty description="Noch keine Räume angelegt." image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+              searchableFields={['name', 'type', 'floorCovering', 'wallFinish', 'notes']}
+              filters={[{ key: 'type', allLabel: 'Alle Raumtypen', options: roomTypeFilters }]}
+              emptyText="Noch keine Räume angelegt."
+              detailTitle={(room) => room.name}
+              renderDetail={(room) => (
+                <Descriptions column={1} bordered size="small">
+                  <Descriptions.Item label="Typ">{room.type || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Fläche">{room.area} m²</Descriptions.Item>
+                  <Descriptions.Item label="Bodenbelag">{room.floorCovering || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Wandbeschaffenheit">{room.wallFinish || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="Notizen">{room.notes || '-'}</Descriptions.Item>
+                </Descriptions>
+              )}
             />
           </Card>
         </Col>
@@ -327,12 +343,9 @@ const PropertyView = () => {
           </Form.Item>
           <Form.Item name="type" label="Raumtyp" rules={[{ required: true, message: 'Typ ist erforderlich' }]}>
             <Select placeholder="Bitte auswählen">
-              <Option value="Bad">Bad</Option>
-              <Option value="Schlafzimmer">Schlafzimmer</Option>
-              <Option value="Wohnbereich">Wohnbereich</Option>
-              <Option value="Küche">Küche</Option>
-              <Option value="Flur">Flur</Option>
-              <Option value="Sonstiges">Sonstiges</Option>
+              {ROOM_TYPES.map((type) => (
+                <Option key={type} value={type}>{type}</Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item name="area" label="Fläche (m²)" rules={[{ required: true, message: 'Fläche ist erforderlich' }]}>

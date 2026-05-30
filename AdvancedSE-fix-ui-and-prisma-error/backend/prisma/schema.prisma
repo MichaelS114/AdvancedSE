@@ -22,6 +22,7 @@ model User {
   contractors Contractor[]
   homes       UserHome[]
   projects    Project[]
+  chatMessages ChatMessage[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -281,6 +282,8 @@ model Offer {
   pdfMimeType       String?
   pdfDataUrl        String?
   services          OfferService[]
+  negotiation       NegotiationSession?
+  chatThread        ChatThread?
   acceptedAt        DateTime?
   rejectedAt        DateTime?
   createdAt         DateTime       @default(now())
@@ -290,6 +293,62 @@ model Offer {
   @@index([contractorId])
   @@index([status])
   @@unique([projectId, contractorId])
+}
+
+model ChatThread {
+  id        String        @id @default(uuid())
+  offerId   String        @unique
+  offer     Offer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id        String     @id @default(uuid())
+  threadId  String
+  thread    ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime   @default(now())
+
+  @@index([threadId])
+  @@index([senderId])
+}
+
+model NegotiationSession {
+  id                      String               @id @default(uuid())
+  offerId                 String               @unique
+  offer                   Offer                @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  status                  String               @default("DRAFT")
+  customerTargetPrice     Float?
+  customerMaxPrice        Float?
+  contractorTargetPrice   Float?
+  contractorMinPrice      Float?
+  finalProposalAmount     Float?
+  customerConfirmedAt     DateTime?
+  contractorConfirmedAt   DateTime?
+  messages                NegotiationMessage[]
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  @@index([status])
+}
+
+model NegotiationMessage {
+  id            String             @id @default(uuid())
+  sessionId     String
+  session       NegotiationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role          String
+  text          String
+  priceProposal Float?
+  round         Int                @default(1)
+  metadata      String?
+  createdAt     DateTime           @default(now())
+
+  @@index([sessionId])
+  @@index([role])
 }
 
 model OfferService {

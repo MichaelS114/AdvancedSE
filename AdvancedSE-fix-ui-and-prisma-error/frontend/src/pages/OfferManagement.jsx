@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -21,9 +22,14 @@ import {
 } from 'antd';
 import {
   CheckCircleOutlined,
+  CloseCircleOutlined,
   EditOutlined,
   FilePdfOutlined,
+  MessageOutlined,
   PlusOutlined,
+  RobotOutlined,
+  SendOutlined,
+  SyncOutlined,
   TrophyOutlined,
   UploadOutlined
 } from '@ant-design/icons';
@@ -34,6 +40,8 @@ const { Text, Title } = Typography;
 
 const PROJECTS_API = 'http://localhost:5001/api/projects';
 const OFFERS_API = 'http://localhost:5001/api/offers';
+const NEGOTIATIONS_API = 'http://localhost:5001/api/negotiations';
+const CHATS_API = 'http://localhost:5001/api/chats';
 
 const currency = new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR' });
 const dateFormatter = new Intl.DateTimeFormat('de-AT');
@@ -62,11 +70,25 @@ const OfferManagement = () => {
   const { token, user } = useAuth();
   const { message } = App.useApp();
   const [offerForm] = Form.useForm();
+  const [negotiationForm] = Form.useForm();
   const [projects, setProjects] = useState([]);
   const [offers, setOffers] = useState([]);
+  const [negotiations, setNegotiations] = useState([]);
+  const [chatThreads, setChatThreads] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [negotiationLoading, setNegotiationLoading] = useState(false);
+  const [negotiationSaving, setNegotiationSaving] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [negotiationModalOpen, setNegotiationModalOpen] = useState(false);
+  const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [negotiationOffer, setNegotiationOffer] = useState(null);
+  const [negotiationSession, setNegotiationSession] = useState(null);
+  const [chatOffer, setChatOffer] = useState(null);
+  const [activeChatThread, setActiveChatThread] = useState(null);
+  const [chatDraft, setChatDraft] = useState('');
   const [editingOfferId, setEditingOfferId] = useState(null);
   const [pdfPreview, setPdfPreview] = useState(null);
   const [pdfMeta, setPdfMeta] = useState(null);
@@ -84,16 +106,34 @@ const OfferManagement = () => {
     [offers, selectedProject]
   );
 
+  const negotiationsByOfferId = useMemo(() => {
+    return negotiations.reduce((map, negotiation) => {
+      map[negotiation.offerId] = negotiation;
+      return map;
+    }, {});
+  }, [negotiations]);
+
+  const chatThreadsByOfferId = useMemo(() => {
+    return chatThreads.reduce((map, thread) => {
+      map[thread.offerId] = thread;
+      return map;
+    }, {});
+  }, [chatThreads]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const projectUrl = isProfessionist ? `${PROJECTS_API}/available` : PROJECTS_API;
-      const [projectsRes, offersRes] = await Promise.all([
+      const [projectsRes, offersRes, negotiationsRes, chatsRes] = await Promise.all([
         axios.get(projectUrl, { headers: authHeaders }),
-        axios.get(OFFERS_API, { headers: authHeaders })
+        axios.get(OFFERS_API, { headers: authHeaders }),
+        axios.get(NEGOTIATIONS_API, { headers: authHeaders }),
+        axios.get(CHATS_API, { headers: authHeaders })
       ]);
       setProjects(projectsRes.data);
       setOffers(offersRes.data);
+      setNegotiations(negotiationsRes.data);
+      setChatThreads(chatsRes.data);
       setSelectedProjectId((current) => {
         if (current && projectsRes.data.some((project) => project.id === current)) return current;
         return projectsRes.data[0]?.id || null;
@@ -167,6 +207,153 @@ const OfferManagement = () => {
 
   const ownOfferForProject = (projectId) => offers.find((offer) => offer.projectId === projectId);
 
+  const refreshNegotiation = async (sessionId) => {
+    if (!sessionId) return null;
+    const res = await axios.get(`${NEGOTIATIONS_API}/${sessionId}`, { headers: authHeaders });
+    setNegotiationSession(res.data);
+    setNegotiations((current) => {
+      const others = current.filter((item) => item.id !== res.data.id);
+      return [res.data, ...others];
+    });
+    return res.data;
+  };
+
+  const openNegotiationModal = async (offer) => {
+    setNegotiationOffer(offer);
+    setNegotiationModalOpen(true);
+    setNegotiationLoading(true);
+    negotiationForm.resetFields();
+
+    try {
+      const res = await axios.get(`${NEGOTIATIONS_API}?offerId=${offer.id}`, { headers: authHeaders });
+      const session = res.data[0] || negotiationsByOfferId[offer.id] || null;
+      setNegotiationSession(session);
+      negotiationForm.setFieldsValue({
+        customerTargetPrice: session?.customerTargetPrice || Math.round((offer.amount || 0) * 0.85),
+        customerMaxPrice: session?.customerMaxPrice || Math.round((offer.amount || 0) * 0.95),
+        contractorTargetPrice: session?.contractorTargetPrice || offer.amount,
+        contractorMinPrice: session?.contractorMinPrice || Math.round((offer.amount || 0) * 0.9)
+      });
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Laden der Verhandlung');
+    } finally {
+      setNegotiationLoading(false);
+    }
+  };
+
+  const saveNegotiationLimits = async (values) => {
+    if (!negotiationOffer) return;
+    setNegotiationSaving(true);
+    try {
+      const endpoint = isProfessionist ? 'contractor-limits' : 'customer-limits';
+      const res = await axios.post(
+        `${NEGOTIATIONS_API}/offers/${negotiationOffer.id}/${endpoint}`,
+        values,
+        { headers: authHeaders }
+      );
+      setNegotiationSession(res.data);
+      setNegotiations((current) => [res.data, ...current.filter((item) => item.id !== res.data.id)]);
+      message.success('Preisgrenzen gespeichert');
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Speichern der Preisgrenzen');
+    } finally {
+      setNegotiationSaving(false);
+    }
+  };
+
+  const runNegotiationStep = async () => {
+    if (!negotiationSession) return;
+    setNegotiationSaving(true);
+    try {
+      const res = await axios.post(`${NEGOTIATIONS_API}/${negotiationSession.id}/step`, {}, { headers: authHeaders });
+      setNegotiationSession(res.data);
+      setNegotiations((current) => [res.data, ...current.filter((item) => item.id !== res.data.id)]);
+      if (res.data.status === 'DEAL_PROPOSED') {
+        message.success('Deal-Vorschlag gefunden');
+      }
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Ausfuehren der Verhandlungsrunde');
+    } finally {
+      setNegotiationSaving(false);
+    }
+  };
+
+  const confirmNegotiation = async () => {
+    if (!negotiationSession) return;
+    setNegotiationSaving(true);
+    try {
+      const res = await axios.post(`${NEGOTIATIONS_API}/${negotiationSession.id}/confirm`, {}, { headers: authHeaders });
+      setNegotiationSession(res.data);
+      setNegotiations((current) => [res.data, ...current.filter((item) => item.id !== res.data.id)]);
+      await fetchData();
+      if (res.data.status === 'CONFIRMED') {
+        message.success('Deal bestaetigt und Angebotspreis aktualisiert');
+      } else {
+        message.success('Ihre Bestaetigung wurde gespeichert');
+      }
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Bestaetigen der Verhandlung');
+    } finally {
+      setNegotiationSaving(false);
+      if (negotiationSession?.id) void refreshNegotiation(negotiationSession.id);
+    }
+  };
+
+  const cancelNegotiation = async () => {
+    if (!negotiationSession) return;
+    setNegotiationSaving(true);
+    try {
+      const res = await axios.post(`${NEGOTIATIONS_API}/${negotiationSession.id}/cancel`, {}, { headers: authHeaders });
+      setNegotiationSession(res.data);
+      setNegotiations((current) => [res.data, ...current.filter((item) => item.id !== res.data.id)]);
+      message.success('Verhandlung abgebrochen');
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Abbrechen der Verhandlung');
+    } finally {
+      setNegotiationSaving(false);
+    }
+  };
+
+  const openChatModal = async (offer) => {
+    setChatOffer(offer);
+    setChatModalOpen(true);
+    setChatLoading(true);
+    setChatDraft('');
+
+    try {
+      const res = await axios.get(`${CHATS_API}?offerId=${offer.id}`, { headers: authHeaders });
+      const thread = res.data[0] || chatThreadsByOfferId[offer.id] || null;
+      setActiveChatThread(thread);
+      if (thread) {
+        setChatThreads((current) => [thread, ...current.filter((item) => item.id !== thread.id)]);
+      }
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Laden des Chats');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatOffer || !chatDraft.trim()) return;
+    setChatSending(true);
+
+    try {
+      const res = await axios.post(
+        `${CHATS_API}/offers/${chatOffer.id}/messages`,
+        { body: chatDraft },
+        { headers: authHeaders }
+      );
+      setActiveChatThread(res.data);
+      setChatThreads((current) => [res.data, ...current.filter((item) => item.id !== res.data.id)]);
+      setChatDraft('');
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Senden der Nachricht');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
   const winnerIds = useMemo(() => {
     const withStart = selectedOffers.filter((offer) => offer.availabilityStart);
     const cheapest = selectedOffers.reduce((best, offer) => (!best || offer.amount < best.amount ? offer : best), null);
@@ -202,18 +389,35 @@ const OfferManagement = () => {
       title: 'PDF',
       render: (_, record) => record.pdfDataUrl ? <Tag icon={<FilePdfOutlined />} color="red">PDF</Tag> : <Tag>Kein PDF</Tag>
     },
-    ...(isProfessionist ? [{
+    {
       title: '',
       align: 'right',
       render: (_, record) => (
-        <Button
-          type="text"
-          icon={<EditOutlined />}
-          disabled={record.status !== 'PENDING'}
-          onClick={() => openOfferModal(record.project, record)}
-        />
+        <Space>
+          <Button
+            icon={<MessageOutlined />}
+            onClick={() => openChatModal(record)}
+          >
+            Chat
+          </Button>
+          <Button
+            icon={<RobotOutlined />}
+            disabled={record.status !== 'PENDING' && !negotiationsByOfferId[record.id]}
+            onClick={() => openNegotiationModal(record)}
+          >
+            KI-Verhandlung
+          </Button>
+          {isProfessionist ? (
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              disabled={record.status !== 'PENDING'}
+              onClick={() => openOfferModal(record.project, record)}
+            />
+          ) : null}
+        </Space>
       )
-    }] : [])
+    }
   ];
 
   const projectColumns = [
@@ -350,6 +554,127 @@ const OfferManagement = () => {
       )}
     </Form.List>
   );
+
+  const negotiationStatusLabel = {
+    DRAFT: { label: 'Vorbereitet', color: 'default' },
+    RUNNING: { label: 'Laeuft', color: 'blue' },
+    DEAL_PROPOSED: { label: 'Deal-Vorschlag', color: 'gold' },
+    CONFIRMED: { label: 'Bestaetigt', color: 'green' },
+    FAILED: { label: 'Ohne Einigung', color: 'red' },
+    CANCELLED: { label: 'Abgebrochen', color: 'red' }
+  };
+
+  const renderNegotiationForm = () => (
+    <Form form={negotiationForm} layout="vertical" onFinish={saveNegotiationLimits}>
+      {isProfessionist ? (
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item name="contractorTargetPrice" label="Zielpreis" rules={[{ required: true, message: 'Zielpreis ist erforderlich' }]}>
+              <InputNumber min={0} precision={2} addonAfter="EUR" style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="contractorMinPrice" label="Mindestpreis" rules={[{ required: true, message: 'Mindestpreis ist erforderlich' }]}>
+              <InputNumber min={0} precision={2} addonAfter="EUR" style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+        </Row>
+      ) : (
+        <Row gutter={16}>
+          <Col xs={24} md={12}>
+            <Form.Item name="customerTargetPrice" label="Zielpreis" rules={[{ required: true, message: 'Zielpreis ist erforderlich' }]}>
+              <InputNumber min={0} precision={2} addonAfter="EUR" style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item name="customerMaxPrice" label="Maximalpreis" rules={[{ required: true, message: 'Maximalpreis ist erforderlich' }]}>
+              <InputNumber min={0} precision={2} addonAfter="EUR" style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+        </Row>
+      )}
+      <Button type="primary" htmlType="submit" loading={negotiationSaving}>
+        Preisgrenzen speichern
+      </Button>
+    </Form>
+  );
+
+  const renderNegotiationMessages = () => {
+    if (!negotiationSession?.messages?.length) {
+      return <Empty description="Noch kein Verhandlungsverlauf." image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+    }
+
+    return (
+      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+        {negotiationSession.messages.map((item) => (
+          <Card
+            key={item.id}
+            size="small"
+            bordered
+            style={{
+              background: item.role === 'SYSTEM' ? '#fafafa' : '#ffffff',
+              borderColor: item.role === 'CUSTOMER_AGENT' ? '#91caff' : item.role === 'CONTRACTOR_AGENT' ? '#95de64' : '#d9d9d9'
+            }}
+          >
+            <Space direction="vertical" size={2}>
+              <Space wrap>
+                <Tag color={item.role === 'CUSTOMER_AGENT' ? 'blue' : item.role === 'CONTRACTOR_AGENT' ? 'green' : 'default'}>
+                  {item.role === 'CUSTOMER_AGENT' ? 'Kundenagent' : item.role === 'CONTRACTOR_AGENT' ? 'Professionistenagent' : 'System'}
+                </Tag>
+                {item.priceProposal !== null ? <Text strong>{currency.format(item.priceProposal)}</Text> : null}
+                {item.round ? <Text type="secondary">Runde {item.round}</Text> : null}
+              </Space>
+              <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-line', lineHeight: 1.55 }}>
+                {item.text}
+              </Typography.Paragraph>
+            </Space>
+          </Card>
+        ))}
+      </Space>
+    );
+  };
+
+  const renderChatMessages = () => {
+    if (chatLoading) return <Card loading size="small" />;
+    if (!activeChatThread?.messages?.length) {
+      return <Empty description="Noch keine Nachrichten." image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {activeChatThread.messages.map((item) => {
+          const isOwn = item.senderId === user?.id;
+          const senderName = `${item.sender?.firstName || ''} ${item.sender?.lastName || ''}`.trim() || (item.sender?.role === 'PROFESSIONIST' ? 'Professionist' : 'Kunde');
+
+          return (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex',
+                justifyContent: isOwn ? 'flex-end' : 'flex-start'
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: '72%',
+                  background: isOwn ? '#e6f4ff' : '#f5f5f5',
+                  border: '1px solid #d9d9d9',
+                  borderRadius: 8,
+                  padding: '8px 10px'
+                }}
+              >
+                <Space direction="vertical" size={2}>
+                  <Text strong style={{ fontSize: 12 }}>{isOwn ? 'Sie' : senderName}</Text>
+                  <Text>{item.body}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{formatDate(item.createdAt)}</Text>
+                </Space>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderProfessionalView = () => (
     <>
@@ -536,6 +861,171 @@ const OfferManagement = () => {
             </Space>
           </div>
         </Form>
+      </Modal>
+
+      <Modal
+        title="KI-Preisverhandlung"
+        open={negotiationModalOpen}
+        onCancel={() => setNegotiationModalOpen(false)}
+        footer={null}
+        width={1040}
+        destroyOnClose
+      >
+        {negotiationOffer ? (
+          <Space direction="vertical" size={18} style={{ width: '100%' }}>
+            <Descriptions size="small" column={{ xs: 1, md: 3 }} bordered>
+              <Descriptions.Item label="Projekt">{negotiationOffer.project?.title}</Descriptions.Item>
+              <Descriptions.Item label="Firma">{negotiationOffer.contractor?.companyName}</Descriptions.Item>
+              <Descriptions.Item label="Aktueller Preis">{currency.format(negotiationOffer.amount || 0)}</Descriptions.Item>
+              <Descriptions.Item label="Status">
+                {negotiationSession ? (
+                  <Tag color={negotiationStatusLabel[negotiationSession.status]?.color}>
+                    {negotiationStatusLabel[negotiationSession.status]?.label || negotiationSession.status}
+                  </Tag>
+                ) : (
+                  <Tag>Keine Session</Tag>
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="Kunde bestaetigt">
+                {negotiationSession?.customerConfirmedAt ? <Tag color="green">Ja</Tag> : <Tag>Nein</Tag>}
+              </Descriptions.Item>
+              <Descriptions.Item label="Professionist bestaetigt">
+                {negotiationSession?.contractorConfirmedAt ? <Tag color="green">Ja</Tag> : <Tag>Nein</Tag>}
+              </Descriptions.Item>
+            </Descriptions>
+
+            <Descriptions size="small" column={{ xs: 1, md: 2 }} bordered>
+              <Descriptions.Item label="Leistungsumfang" span={2}>
+                {negotiationOffer.scopeDescription || negotiationOffer.project?.description || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Inklusivleistungen">
+                <Space wrap>
+                  {getServiceDescriptions(negotiationOffer, 'INCLUDED').length
+                    ? getServiceDescriptions(negotiationOffer, 'INCLUDED').map((item) => <Tag color="blue" key={item}>{item}</Tag>)
+                    : <Text type="secondary">Keine Details</Text>}
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="Ausschluesse">
+                <Space wrap>
+                  {getServiceDescriptions(negotiationOffer, 'EXCLUDED').length
+                    ? getServiceDescriptions(negotiationOffer, 'EXCLUDED').map((item) => <Tag key={item}>{item}</Tag>)
+                    : <Text type="secondary">Keine Details</Text>}
+                </Space>
+              </Descriptions.Item>
+              <Descriptions.Item label="Start">{formatDate(negotiationOffer.availabilityStart)}</Descriptions.Item>
+              <Descriptions.Item label="Dauer">{negotiationOffer.durationDays ? `${negotiationOffer.durationDays} Tage` : '-'}</Descriptions.Item>
+              <Descriptions.Item label="Wunschstart">{formatDate(negotiationOffer.project?.desiredStartDate)}</Descriptions.Item>
+              <Descriptions.Item label="Deadline">{formatDate(negotiationOffer.project?.desiredDeadline)}</Descriptions.Item>
+            </Descriptions>
+
+            {negotiationSession?.finalProposalAmount ? (
+              <Alert
+                type={negotiationSession.status === 'CONFIRMED' ? 'success' : 'warning'}
+                showIcon
+                message={`Deal-Vorschlag: ${currency.format(negotiationSession.finalProposalAmount)}`}
+                description="Der Angebotspreis wird erst aktualisiert, sobald beide Seiten bestaetigt haben."
+              />
+            ) : null}
+
+            <Card size="small" title={isProfessionist ? 'Professionistenagent' : 'Kundenagent'} loading={negotiationLoading}>
+              {renderNegotiationForm()}
+            </Card>
+
+            <Card
+              size="small"
+              title="Verhandlungsverlauf und Begruendung"
+              extra={negotiationSession ? (
+                <Space>
+                  <Button
+                    icon={<SyncOutlined />}
+                    loading={negotiationSaving}
+                    disabled={!['DRAFT', 'RUNNING'].includes(negotiationSession.status)}
+                    onClick={runNegotiationStep}
+                  >
+                    Naechste KI-Runde
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<CheckCircleOutlined />}
+                    loading={negotiationSaving}
+                    disabled={negotiationSession.status !== 'DEAL_PROPOSED'}
+                    onClick={confirmNegotiation}
+                  >
+                    Deal bestaetigen
+                  </Button>
+                  <Button
+                    danger
+                    icon={<CloseCircleOutlined />}
+                    loading={negotiationSaving}
+                    disabled={['CONFIRMED', 'CANCELLED'].includes(negotiationSession.status)}
+                    onClick={cancelNegotiation}
+                  >
+                    Abbrechen
+                  </Button>
+                </Space>
+              ) : null}
+              bodyStyle={{ maxHeight: 520, overflowY: 'auto' }}
+            >
+              {renderNegotiationMessages()}
+            </Card>
+          </Space>
+        ) : null}
+      </Modal>
+
+      <Modal
+        title="Chat"
+        open={chatModalOpen}
+        onCancel={() => setChatModalOpen(false)}
+        footer={null}
+        width={760}
+        destroyOnClose
+      >
+        {chatOffer ? (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Descriptions size="small" column={{ xs: 1, md: 3 }} bordered>
+              <Descriptions.Item label="Projekt">{chatOffer.project?.title}</Descriptions.Item>
+              <Descriptions.Item label="Firma">{chatOffer.contractor?.companyName}</Descriptions.Item>
+              <Descriptions.Item label="Angebot">{currency.format(chatOffer.amount || 0)}</Descriptions.Item>
+            </Descriptions>
+
+            <Card
+              size="small"
+              bodyStyle={{
+                maxHeight: 420,
+                overflowY: 'auto',
+                background: '#ffffff'
+              }}
+            >
+              {renderChatMessages()}
+            </Card>
+
+            <Space.Compact style={{ width: '100%' }}>
+              <Input.TextArea
+                value={chatDraft}
+                onChange={(event) => setChatDraft(event.target.value)}
+                onPressEnter={(event) => {
+                  if (!event.shiftKey) {
+                    event.preventDefault();
+                    void sendChatMessage();
+                  }
+                }}
+                autoSize={{ minRows: 2, maxRows: 5 }}
+                maxLength={2000}
+                placeholder="Nachricht schreiben ..."
+                disabled={chatSending}
+              />
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                loading={chatSending}
+                disabled={!chatDraft.trim()}
+                onClick={sendChatMessage}
+              >
+                Senden
+              </Button>
+            </Space.Compact>
+          </Space>
+        ) : null}
       </Modal>
     </div>
   );

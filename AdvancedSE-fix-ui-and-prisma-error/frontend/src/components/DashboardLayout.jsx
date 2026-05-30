@@ -31,7 +31,7 @@ const DashboardLayout = () => {
 
   const isHausbesitzer = user?.role === 'HAUSBESITZER';
 
-  const menuItems = [
+  const homeownerMenuItems = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
@@ -60,17 +60,12 @@ const DashboardLayout = () => {
         {
           key: '/offers',
           icon: <FileProtectOutlined />,
-          label: 'Angebote'
+          label: 'Angebote / Vergleich'
         },
         {
           key: '/insurance',
           icon: <SafetyCertificateOutlined />,
           label: 'Versicherung'
-        },
-        {
-          key: '/contractors',
-          icon: <ContactsOutlined />,
-          label: 'Handwerker'
         }
       ]
     },
@@ -80,6 +75,26 @@ const DashboardLayout = () => {
       label: 'Dokumente'
     }
   ];
+
+  const professionalMenuItems = [
+    {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard'
+    },
+    {
+      key: '/offers',
+      icon: <FileProtectOutlined />,
+      label: 'Projekte & Angebote'
+    },
+    {
+      key: '/contractors',
+      icon: <ContactsOutlined />,
+      label: 'Firmenprofil'
+    }
+  ];
+
+  const menuItems = isHausbesitzer ? homeownerMenuItems : professionalMenuItems;
 
   const userMenu = {
     items: [

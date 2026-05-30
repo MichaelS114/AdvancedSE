@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 const { authenticateToken } = require('../middleware/auth');
 
 const PROJECT_STATUSES = ['IN_PLANUNG', 'BEAUFTRAGT', 'IN_UMSETZUNG', 'ABGESCHLOSSEN', 'STORNIERT'];
+const ROLE_HAUSBESITZER = 'HAUSBESITZER';
+const ROLE_PROFESSIONIST = 'PROFESSIONIST';
 
 const includeProjectDetails = {
   offers: {
@@ -33,6 +35,7 @@ const normalizeProjectData = (body, userId, propertyId) => ({
   propertyId: body.propertyId || propertyId || null,
   title: body.title,
   category: body.category || 'Sanierung',
+  trade: body.trade || null,
   description: body.description || null,
   targetBudget: Number(body.targetBudget) || 0,
   desiredStartDate: toDateOrNull(body.desiredStartDate),
@@ -60,6 +63,21 @@ const getUserPropertyId = async (userId) => {
   return property?.id || null;
 };
 
+const requireRole = (req, res, role) => {
+  if (req.user.role !== role) {
+    res.status(403).json({ error: 'Forbidden' });
+    return false;
+  }
+  return true;
+};
+
+const getPrimaryContractorForUser = async (userId) => {
+  return prisma.contractor.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'asc' }
+  });
+};
+
 const getProjectForUser = async (projectId, userId) => {
   return prisma.project.findFirst({
     where: { id: projectId, userId },
@@ -84,6 +102,7 @@ const offerManagementProjectSelect = {
   id: true,
   title: true,
   category: true,
+  trade: true,
   description: true,
   targetBudget: true,
   desiredStartDate: true,
@@ -112,6 +131,8 @@ const recalculateContractorRating = async (tx, contractorId) => {
 
 router.get('/active', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const projects = await prisma.project.findMany({
       where: {
         userId: req.user.id,
@@ -134,6 +155,8 @@ router.get('/active', authenticateToken, async (req, res) => {
 
 router.get('/offer-management', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const projects = await prisma.project.findMany({
       where: { userId: req.user.id },
       select: offerManagementProjectSelect,
@@ -150,8 +173,38 @@ router.get('/offer-management', authenticateToken, async (req, res) => {
   }
 });
 
+router.get('/available', authenticateToken, async (req, res) => {
+  try {
+    if (!requireRole(req, res, ROLE_PROFESSIONIST)) return;
+
+    const contractor = await getPrimaryContractorForUser(req.user.id);
+    if (!contractor) {
+      return res.status(400).json({ error: 'Bitte zuerst ein Firmenprofil anlegen' });
+    }
+
+    const projects = await prisma.project.findMany({
+      where: {
+        status: 'IN_PLANUNG',
+        trade: contractor.trade
+      },
+      include: includeProjectDetails,
+      orderBy: [
+        { desiredDeadline: 'asc' },
+        { updatedAt: 'desc' }
+      ]
+    });
+
+    res.json(projects.map(mapProject));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Serverfehler beim Abrufen verfügbarer Projekte' });
+  }
+});
+
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const where = { userId: req.user.id };
     if (req.query.status) where.status = req.query.status;
 
@@ -170,8 +223,13 @@ router.get('/', authenticateToken, async (req, res) => {
 
 router.post('/', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     if (!req.body.title) {
       return res.status(400).json({ error: 'Projekttitel ist erforderlich' });
+    }
+    if (!req.body.trade) {
+      return res.status(400).json({ error: 'Gewerk ist erforderlich' });
     }
 
     const propertyId = await getUserPropertyId(req.user.id);
@@ -189,17 +247,21 @@ router.post('/', authenticateToken, async (req, res) => {
 
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const existingProject = await prisma.project.findUnique({ where: { id: req.params.id } });
 
     if (!existingProject) return res.status(404).json({ error: 'Projekt nicht gefunden' });
     if (existingProject.userId !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
     if (!req.body.title) return res.status(400).json({ error: 'Projekttitel ist erforderlich' });
+    if (!req.body.trade) return res.status(400).json({ error: 'Gewerk ist erforderlich' });
 
     const project = await prisma.project.update({
       where: { id: req.params.id },
       data: {
         title: req.body.title,
         category: req.body.category || 'Sanierung',
+        trade: req.body.trade,
         description: req.body.description || null,
         targetBudget: Number(req.body.targetBudget) || 0,
         desiredStartDate: toDateOrNull(req.body.desiredStartDate),
@@ -219,6 +281,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const existingProject = await prisma.project.findUnique({ where: { id: req.params.id } });
 
     if (!existingProject) return res.status(404).json({ error: 'Projekt nicht gefunden' });
@@ -234,38 +298,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
 router.post('/:id/offers', authenticateToken, async (req, res) => {
   try {
-    const project = await getProjectForUser(req.params.id, req.user.id);
-    if (!project) return res.status(404).json({ error: 'Projekt nicht gefunden' });
-
-    const amount = toFloat(req.body.amount);
-    if (!req.body.contractorId || amount === null || amount < 0) {
-      return res.status(400).json({ error: 'Handwerker und Angebotssumme sind erforderlich' });
-    }
-
-    const contractor = await prisma.contractor.findFirst({
-      where: { id: req.body.contractorId, userId: req.user.id }
-    });
-    if (!contractor) return res.status(404).json({ error: 'Handwerker nicht gefunden' });
-
-    const offer = await prisma.offer.create({
-      data: {
-        projectId: project.id,
-        contractorId: contractor.id,
-        amount,
-        currency: req.body.currency || 'EUR',
-        validUntil: toDateOrNull(req.body.validUntil),
-        scopeDescription: req.body.scopeDescription || req.body.notes || '',
-        availabilityStart: toDateOrNull(req.body.availabilityStart),
-        durationDays: Number(req.body.durationDays) || 0,
-        notes: req.body.notes || null,
-        pdfFileName: req.body.pdfFileName || null,
-        pdfMimeType: req.body.pdfMimeType || 'application/pdf',
-        pdfDataUrl: req.body.pdfDataUrl || null
-      },
-      include: { contractor: true, services: true }
-    });
-
-    res.status(201).json(offer);
+    return res.status(403).json({ error: 'Angebote können nur von Professionisten erstellt werden' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Serverfehler beim Erstellen des Angebots' });
@@ -274,6 +307,8 @@ router.post('/:id/offers', authenticateToken, async (req, res) => {
 
 router.post('/offers/:offerId/accept', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const offer = await getOfferForUser(req.params.offerId, req.user.id);
     if (!offer) return res.status(404).json({ error: 'Angebot nicht gefunden' });
 
@@ -321,6 +356,8 @@ router.post('/offers/:offerId/accept', authenticateToken, async (req, res) => {
 
 router.post('/:id/final-invoice', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const project = await getProjectForUser(req.params.id, req.user.id);
     if (!project) return res.status(404).json({ error: 'Projekt nicht gefunden' });
 
@@ -359,6 +396,8 @@ router.post('/:id/final-invoice', authenticateToken, async (req, res) => {
 
 router.post('/:id/review', authenticateToken, async (req, res) => {
   try {
+    if (!requireRole(req, res, ROLE_HAUSBESITZER)) return;
+
     const project = await getProjectForUser(req.params.id, req.user.id);
     if (!project) return res.status(404).json({ error: 'Projekt nicht gefunden' });
     if (!project.finalInvoiceAmount) {

@@ -55,6 +55,7 @@ const offerStatusLabels = {
   ACCEPTED: { label: 'Angenommen', color: 'green' },
   REJECTED: { label: 'Abgelehnt', color: 'red' }
 };
+const TRADE_OPTIONS = ['Elektrik', 'Sanitär', 'Heizung', 'Dach', 'Fenster', 'Maler', 'Boden', 'Generalunternehmer'];
 
 const euro = new Intl.NumberFormat('de-AT', {
   style: 'currency',
@@ -146,6 +147,8 @@ const ProjectTendering = () => {
   }, [authHeaders, message]);
 
   useEffect(() => {
+    // Initial load synchronizes tendering data with persisted records.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchProjects();
     void fetchContractors();
   }, [fetchContractors, fetchProjects]);
@@ -295,9 +298,6 @@ const ProjectTendering = () => {
       align: 'right',
       render: (_, record) => (
         <Space>
-          <Button icon={<PlusOutlined />} onClick={() => setOfferModalProject(record)}>
-            Angebot
-          </Button>
           <Popconfirm
             title="Projekt löschen?"
             description="Alle Angebote und Bewertungen zu diesem Projekt werden entfernt."
@@ -456,9 +456,6 @@ const ProjectTendering = () => {
             )}
 
             <Space wrap>
-              <Button icon={<PlusOutlined />} onClick={() => setOfferModalProject(selectedProject)}>
-                Angebot erfassen
-              </Button>
               <Button
                 icon={<FilePdfOutlined />}
                 disabled={!acceptedOffer}
@@ -489,6 +486,13 @@ const ProjectTendering = () => {
         <Form form={projectForm} layout="vertical" onFinish={handleCreateProject}>
           <Form.Item name="title" label="Projekttitel" rules={[{ required: true, message: 'Projekttitel ist erforderlich' }]}>
             <Input placeholder="z.B. Bad sanieren" />
+          </Form.Item>
+          <Form.Item name="trade" label="Gewerk" rules={[{ required: true, message: 'Gewerk ist erforderlich' }]}>
+            <Select
+              showSearch
+              placeholder="Bitte auswählen"
+              options={TRADE_OPTIONS.map((trade) => ({ value: trade, label: trade }))}
+            />
           </Form.Item>
           <Form.Item name="description" label="Beschreibung">
             <Input.TextArea rows={3} placeholder="Umfang, Räume, Besonderheiten ..." />

@@ -10,7 +10,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Row,
   Select,
   Space,
@@ -21,7 +20,7 @@ import {
   Upload
 } from 'antd';
 import {
-  DeleteOutlined,
+  CheckCircleOutlined,
   EditOutlined,
   FilePdfOutlined,
   PlusOutlined,
@@ -32,6 +31,9 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
 const { Text, Title } = Typography;
+
+const PROJECTS_API = 'http://localhost:5001/api/projects';
+const OFFERS_API = 'http://localhost:5001/api/offers';
 
 const currency = new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR' });
 const dateFormatter = new Intl.DateTimeFormat('de-AT');
@@ -57,51 +59,51 @@ const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
 });
 
 const OfferManagement = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { message } = App.useApp();
   const [offerForm] = Form.useForm();
-  const [projectForm] = Form.useForm();
   const [projects, setProjects] = useState([]);
-  const [contractors, setContractors] = useState([]);
   const [offers, setOffers] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [offerModalOpen, setOfferModalOpen] = useState(false);
-  const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingOfferId, setEditingOfferId] = useState(null);
   const [pdfPreview, setPdfPreview] = useState(null);
   const [pdfMeta, setPdfMeta] = useState(null);
 
+  const isProfessionist = user?.role === 'PROFESSIONIST';
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const selectedProject = useMemo(
-    () => projects.find((project) => project.id === selectedProjectId) || null,
+    () => projects.find((project) => project.id === selectedProjectId) || projects[0] || null,
     [projects, selectedProjectId]
   );
 
   const selectedOffers = useMemo(
-    () => offers.filter((offer) => offer.projectId === selectedProjectId),
-    [offers, selectedProjectId]
+    () => offers.filter((offer) => offer.projectId === selectedProject?.id),
+    [offers, selectedProject]
   );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [projectsRes, contractorsRes, offersRes] = await Promise.all([
-        axios.get('http://localhost:5001/api/projects', { headers: authHeaders }),
-        axios.get('http://localhost:5001/api/contractors', { headers: authHeaders }),
-        axios.get('http://localhost:5001/api/offers', { headers: authHeaders })
+      const projectUrl = isProfessionist ? `${PROJECTS_API}/available` : PROJECTS_API;
+      const [projectsRes, offersRes] = await Promise.all([
+        axios.get(projectUrl, { headers: authHeaders }),
+        axios.get(OFFERS_API, { headers: authHeaders })
       ]);
       setProjects(projectsRes.data);
-      setContractors(contractorsRes.data);
       setOffers(offersRes.data);
-      setSelectedProjectId((current) => current || projectsRes.data[0]?.id || null);
-    } catch {
-      message.error('Fehler beim Laden der Angebotsdaten');
+      setSelectedProjectId((current) => {
+        if (current && projectsRes.data.some((project) => project.id === current)) return current;
+        return projectsRes.data[0]?.id || null;
+      });
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Laden der Angebotsdaten');
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, message]);
+  }, [authHeaders, isProfessionist, message]);
 
   useEffect(() => {
     // Initial load synchronizes the offer workspace with persisted records.
@@ -109,31 +111,22 @@ const OfferManagement = () => {
     void fetchData();
   }, [fetchData]);
 
-  const openOfferModal = (offer = null) => {
+  const openOfferModal = (project, offer = null) => {
     setEditingOfferId(offer?.id || null);
     setPdfPreview(offer?.pdfDataUrl || null);
     setPdfMeta(offer?.pdfFileName ? { fileName: offer.pdfFileName, mimeType: offer.pdfMimeType } : null);
-    if (offer) {
-      offerForm.setFieldsValue({
-        projectId: offer.projectId,
-        contractorId: offer.contractorId,
-        price: offer.amount,
-        validUntil: toDateInput(offer.validUntil),
-        scopeDescription: offer.scopeDescription,
-        availabilityStart: toDateInput(offer.availabilityStart),
-        durationDays: offer.durationDays,
-        includedServices: getServiceDescriptions(offer, 'INCLUDED'),
-        excludedServices: getServiceDescriptions(offer, 'EXCLUDED'),
-        notes: offer.notes
-      });
-    } else {
-      offerForm.resetFields();
-      offerForm.setFieldsValue({
-        projectId: selectedProjectId,
-        includedServices: [''],
-        excludedServices: ['']
-      });
-    }
+    offerForm.resetFields();
+    offerForm.setFieldsValue({
+      projectId: project.id,
+      price: offer?.amount,
+      validUntil: toDateInput(offer?.validUntil),
+      scopeDescription: offer?.scopeDescription,
+      availabilityStart: toDateInput(offer?.availabilityStart),
+      durationDays: offer?.durationDays,
+      includedServices: offer ? getServiceDescriptions(offer, 'INCLUDED') : [''],
+      excludedServices: offer ? getServiceDescriptions(offer, 'EXCLUDED') : [''],
+      notes: offer?.notes
+    });
     setOfferModalOpen(true);
   };
 
@@ -147,39 +140,16 @@ const OfferManagement = () => {
 
     try {
       if (editingOfferId) {
-        await axios.put(`http://localhost:5001/api/offers/${editingOfferId}`, payload, { headers: authHeaders });
+        await axios.put(`${OFFERS_API}/${editingOfferId}`, payload, { headers: authHeaders });
         message.success('Angebot aktualisiert');
       } else {
-        await axios.post('http://localhost:5001/api/offers', payload, { headers: authHeaders });
-        message.success('Angebot angelegt');
+        await axios.post(OFFERS_API, payload, { headers: authHeaders });
+        message.success('Angebot abgegeben');
       }
       setOfferModalOpen(false);
-      void fetchData();
+      await fetchData();
     } catch (err) {
       message.error(err.response?.data?.error || 'Fehler beim Speichern des Angebots');
-    }
-  };
-
-  const saveProject = async (values) => {
-    try {
-      const res = await axios.post('http://localhost:5001/api/projects', values, { headers: authHeaders });
-      message.success('Projekt angelegt');
-      setProjectModalOpen(false);
-      setSelectedProjectId(res.data.id);
-      projectForm.resetFields();
-      void fetchData();
-    } catch {
-      message.error('Fehler beim Erstellen des Projekts');
-    }
-  };
-
-  const deleteOffer = async (id) => {
-    try {
-      await axios.delete(`http://localhost:5001/api/offers/${id}`, { headers: authHeaders });
-      message.success('Angebot gelöscht');
-      void fetchData();
-    } catch {
-      message.error('Fehler beim Löschen des Angebots');
     }
   };
 
@@ -195,6 +165,8 @@ const OfferManagement = () => {
     return false;
   };
 
+  const ownOfferForProject = (projectId) => offers.find((offer) => offer.projectId === projectId);
+
   const winnerIds = useMemo(() => {
     const withStart = selectedOffers.filter((offer) => offer.availabilityStart);
     const cheapest = selectedOffers.reduce((best, offer) => (!best || offer.amount < best.amount ? offer : best), null);
@@ -206,6 +178,10 @@ const OfferManagement = () => {
       shortest: shortest?.id
     };
   }, [selectedOffers]);
+
+  const winnerTag = (label) => (
+    <Tag color="green" icon={<TrophyOutlined />} style={{ marginLeft: 8 }}>{label}</Tag>
+  );
 
   const offerColumns = [
     {
@@ -221,26 +197,63 @@ const OfferManagement = () => {
     { title: 'Gültig bis', dataIndex: 'validUntil', render: formatDate },
     { title: 'Start', dataIndex: 'availabilityStart', render: formatDate },
     { title: 'Dauer', dataIndex: 'durationDays', render: (value) => `${value} Tage` },
+    { title: 'Status', dataIndex: 'status', render: (value) => <Tag>{value}</Tag> },
     {
       title: 'PDF',
       render: (_, record) => record.pdfDataUrl ? <Tag icon={<FilePdfOutlined />} color="red">PDF</Tag> : <Tag>Kein PDF</Tag>
     },
-    {
+    ...(isProfessionist ? [{
       title: '',
       align: 'right',
       render: (_, record) => (
-        <Space>
-          <Button type="text" icon={<EditOutlined />} onClick={() => openOfferModal(record)} />
-          <Popconfirm
-            title="Angebot löschen?"
-            okText="Löschen"
-            cancelText="Abbrechen"
-            onConfirm={() => deleteOffer(record.id)}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+        <Button
+          type="text"
+          icon={<EditOutlined />}
+          disabled={record.status !== 'PENDING'}
+          onClick={() => openOfferModal(record.project, record)}
+        />
+      )
+    }] : [])
+  ];
+
+  const projectColumns = [
+    {
+      title: 'Projekt',
+      dataIndex: 'title',
+      render: (title, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{title}</Text>
+          <Text type="secondary">{record.trade || record.category}</Text>
         </Space>
       )
+    },
+    { title: 'Budget', dataIndex: 'targetBudget', render: (value) => currency.format(value || 0) },
+    { title: 'Wunschstart', dataIndex: 'desiredStartDate', render: formatDate },
+    { title: 'Deadline', dataIndex: 'desiredDeadline', render: formatDate },
+    {
+      title: 'Mein Angebot',
+      render: (_, record) => {
+        const offer = ownOfferForProject(record.id);
+        if (!offer) return <Tag>Offen</Tag>;
+        return <Tag color={offer.status === 'ACCEPTED' ? 'green' : 'blue'}>{currency.format(offer.amount)}</Tag>;
+      }
+    },
+    {
+      title: '',
+      align: 'right',
+      render: (_, record) => {
+        const offer = ownOfferForProject(record.id);
+        return (
+          <Button
+            type={offer ? 'default' : 'primary'}
+            icon={offer ? <EditOutlined /> : <PlusOutlined />}
+            disabled={offer?.status && offer.status !== 'PENDING'}
+            onClick={() => openOfferModal(record, offer)}
+          >
+            {offer ? 'Bearbeiten' : 'Angebot stellen'}
+          </Button>
+        );
+      }
     }
   ];
 
@@ -265,10 +278,6 @@ const OfferManagement = () => {
     }))
   ];
 
-  const winnerTag = (label) => (
-    <Tag color="green" icon={<TrophyOutlined />} style={{ marginLeft: 8 }}>{label}</Tag>
-  );
-
   const matrixRows = [
     {
       key: 'price',
@@ -285,27 +294,19 @@ const OfferManagement = () => {
         );
       }
     },
-    {
-      key: 'scope',
-      label: 'Leistungsumfang',
-      render: (offer) => <Text>{offer.scopeDescription}</Text>
-    },
+    { key: 'scope', label: 'Leistungsumfang', render: (offer) => <Text>{offer.scopeDescription}</Text> },
     {
       key: 'included',
       label: 'Inklusivleistungen',
       render: (offer) => (
-        <Space wrap>
-          {getServiceDescriptions(offer, 'INCLUDED').map((item) => <Tag color="blue" key={item}>{item}</Tag>)}
-        </Space>
+        <Space wrap>{getServiceDescriptions(offer, 'INCLUDED').map((item) => <Tag color="blue" key={item}>{item}</Tag>)}</Space>
       )
     },
     {
       key: 'excluded',
       label: 'Exklusivleistungen',
       render: (offer) => (
-        <Space wrap>
-          {getServiceDescriptions(offer, 'EXCLUDED').map((item) => <Tag key={item}>{item}</Tag>)}
-        </Space>
+        <Space wrap>{getServiceDescriptions(offer, 'EXCLUDED').map((item) => <Tag key={item}>{item}</Tag>)}</Space>
       )
     },
     {
@@ -326,9 +327,7 @@ const OfferManagement = () => {
     {
       key: 'duration',
       label: 'Projektdauer',
-      render: (offer) => (
-        <Text>{offer.durationDays} Tage{winnerIds.shortest === offer.id ? winnerTag('kürzeste Dauer') : null}</Text>
-      )
+      render: (offer) => <Text>{offer.durationDays} Tage{winnerIds.shortest === offer.id ? winnerTag('kürzeste Dauer') : null}</Text>
     }
   ];
 
@@ -342,32 +341,64 @@ const OfferManagement = () => {
                 <Form.Item {...field} noStyle>
                   <Input placeholder="Leistung beschreiben" style={{ width: 360 }} />
                 </Form.Item>
-                <Button danger type="text" icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+                <Button danger type="text" onClick={() => remove(field.name)}>Entfernen</Button>
               </Space>
             ))}
-            <Button icon={<PlusOutlined />} onClick={() => add('')}>
-              Leistung hinzufügen
-            </Button>
+            <Button icon={<PlusOutlined />} onClick={() => add('')}>Leistung hinzufügen</Button>
           </Space>
         </Form.Item>
       )}
     </Form.List>
   );
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <Text type="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0, fontSize: 12 }}>Angebotsmanagement</Text>
-          <Title level={2} style={{ margin: '4px 0 0' }}>Angebote erfassen und vergleichen</Title>
-          <Text type="secondary">Projektzuordnung, Handwerker, PDF, Preis und Leistungen strukturiert an einem Ort.</Text>
-        </div>
-        <Space wrap>
-          <Button icon={<PlusOutlined />} onClick={() => setProjectModalOpen(true)}>Projekt anlegen</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => openOfferModal()} disabled={!projects.length || !contractors.length}>
-            Angebot erfassen
-          </Button>
-        </Space>
+  const renderProfessionalView = () => (
+    <>
+      <div>
+        <Text type="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0, fontSize: 12 }}>Professionistenbereich</Text>
+        <Title level={2} style={{ margin: '4px 0 0' }}>Passende Projekte</Title>
+        <Text type="secondary">Sie sehen nur offene Projekte, die exakt zu Ihrem hinterlegten Gewerk passen.</Text>
+      </div>
+
+      <Card bordered={false} style={{ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }}>
+        <Table
+          columns={projectColumns}
+          dataSource={projects}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 8 }}
+          expandable={{
+            expandedRowRender: (record) => (
+              <Descriptions size="small" column={{ xs: 1, md: 3 }}>
+                <Descriptions.Item label="Kategorie">{record.category}</Descriptions.Item>
+                <Descriptions.Item label="Gewerk">{record.trade}</Descriptions.Item>
+                <Descriptions.Item label="Beschreibung">{record.description || 'Keine Beschreibung'}</Descriptions.Item>
+              </Descriptions>
+            )
+          }}
+          locale={{ emptyText: <Empty description="Keine passenden offenen Projekte gefunden." image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+        />
+      </Card>
+
+      <Card bordered={false} style={{ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }}>
+        <Title level={4}>Meine Angebote</Title>
+        <Table
+          columns={offerColumns}
+          dataSource={offers}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 8 }}
+          locale={{ emptyText: <Empty description="Noch keine Angebote abgegeben." image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+        />
+      </Card>
+    </>
+  );
+
+  const renderHomeownerView = () => (
+    <>
+      <div>
+        <Text type="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0, fontSize: 12 }}>Angebotsmanagement</Text>
+        <Title level={2} style={{ margin: '4px 0 0' }}>Angebote vergleichen</Title>
+        <Text type="secondary">Angebote werden von Professionisten gestellt und können hier projektweise verglichen werden.</Text>
       </div>
 
       <Card bordered={false} style={{ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }}>
@@ -383,7 +414,7 @@ const OfferManagement = () => {
                   rowKey="id"
                   loading={loading}
                   pagination={{ pageSize: 8 }}
-                  locale={{ emptyText: <Empty description="Noch keine Angebote erfasst." image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                  locale={{ emptyText: <Empty description="Noch keine Angebote eingegangen." image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
                 />
               )
             },
@@ -396,7 +427,7 @@ const OfferManagement = () => {
                     <Col xs={24} md={10}>
                       <Text strong>Projekt</Text>
                       <Select
-                        value={selectedProjectId}
+                        value={selectedProject?.id}
                         onChange={setSelectedProjectId}
                         style={{ width: '100%', marginTop: 8 }}
                         options={projects.map((project) => ({ value: project.id, label: project.title }))}
@@ -407,8 +438,8 @@ const OfferManagement = () => {
                       {selectedProject ? (
                         <Descriptions size="small" column={3}>
                           <Descriptions.Item label="Budget">{currency.format(selectedProject.targetBudget || 0)}</Descriptions.Item>
+                          <Descriptions.Item label="Gewerk">{selectedProject.trade || '-'}</Descriptions.Item>
                           <Descriptions.Item label="Wunschstart">{formatDate(selectedProject.desiredStartDate)}</Descriptions.Item>
-                          <Descriptions.Item label="Kategorie">{selectedProject.category}</Descriptions.Item>
                         </Descriptions>
                       ) : null}
                     </Col>
@@ -432,9 +463,15 @@ const OfferManagement = () => {
           ]}
         />
       </Card>
+    </>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {isProfessionist ? renderProfessionalView() : renderHomeownerView()}
 
       <Modal
-        title={editingOfferId ? 'Angebot bearbeiten' : 'Angebot erfassen'}
+        title={editingOfferId ? 'Angebot bearbeiten' : 'Angebot stellen'}
         open={offerModalOpen}
         onCancel={() => setOfferModalOpen(false)}
         footer={null}
@@ -442,17 +479,10 @@ const OfferManagement = () => {
         destroyOnClose
       >
         <Form form={offerForm} layout="vertical" onFinish={saveOffer}>
+          <Form.Item name="projectId" hidden>
+            <Input />
+          </Form.Item>
           <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item name="projectId" label="Projekt" rules={[{ required: true, message: 'Projekt ist erforderlich' }]}>
-                <Select options={projects.map((project) => ({ value: project.id, label: project.title }))} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item name="contractorId" label="Handwerker" rules={[{ required: true, message: 'Handwerker ist erforderlich' }]}>
-                <Select options={contractors.map((contractor) => ({ value: contractor.id, label: `${contractor.companyName} (${contractor.trade})` }))} />
-              </Form.Item>
-            </Col>
             <Col xs={24} md={8}>
               <Form.Item name="price" label="Preis" rules={[{ required: true, message: 'Preis ist erforderlich' }]}>
                 <InputNumber min={0} precision={2} addonAfter="EUR" style={{ width: '100%' }} />
@@ -502,39 +532,7 @@ const OfferManagement = () => {
           <div style={{ textAlign: 'right', marginTop: 24 }}>
             <Space>
               <Button onClick={() => setOfferModalOpen(false)}>Abbrechen</Button>
-              <Button type="primary" htmlType="submit">Speichern</Button>
-            </Space>
-          </div>
-        </Form>
-      </Modal>
-
-      <Modal
-        title="Projekt anlegen"
-        open={projectModalOpen}
-        onCancel={() => setProjectModalOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Form form={projectForm} layout="vertical" onFinish={saveProject}>
-          <Form.Item name="title" label="Titel" rules={[{ required: true, message: 'Titel ist erforderlich' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="category" label="Kategorie" rules={[{ required: true, message: 'Kategorie ist erforderlich' }]}>
-            <Select options={['Sanierung', 'Wartung', 'Modernisierung', 'Reparatur', 'Ausbau'].map((value) => ({ value, label: value }))} />
-          </Form.Item>
-          <Form.Item name="targetBudget" label="Zielbudget">
-            <InputNumber min={0} precision={2} addonAfter="EUR" style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="desiredStartDate" label="Wunschstart">
-            <Input type="date" />
-          </Form.Item>
-          <Form.Item name="description" label="Beschreibung">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <div style={{ textAlign: 'right' }}>
-            <Space>
-              <Button onClick={() => setProjectModalOpen(false)}>Abbrechen</Button>
-              <Button type="primary" htmlType="submit">Speichern</Button>
+              <Button type="primary" htmlType="submit" icon={<CheckCircleOutlined />}>Speichern</Button>
             </Space>
           </div>
         </Form>

@@ -89,6 +89,8 @@ const InsuranceClaims = () => {
   }, [authHeaders, message]);
 
   useEffect(() => {
+    // Initial load synchronizes the insurance workspace with persisted records.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchInsurance();
   }, [fetchInsurance]);
 

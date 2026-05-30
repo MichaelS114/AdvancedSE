@@ -44,6 +44,7 @@ const PROJECT_CATEGORIES = [
   'Innenausbau',
   'Sonstiges'
 ];
+const TRADE_OPTIONS = ['Elektrik', 'Sanitär', 'Heizung', 'Dach', 'Fenster', 'Maler', 'Boden', 'Generalunternehmer'];
 
 const toDateInputValue = (value) => {
   if (!value) return undefined;
@@ -155,7 +156,7 @@ const ProjectManagement = () => {
       render: (title, record) => (
         <Space direction="vertical" size={2}>
           <Text strong>{title}</Text>
-          <Text type="secondary">{record.category}</Text>
+          <Text type="secondary">{record.category} · {record.trade || 'Kein Gewerk gesetzt'}</Text>
           {record.documentReference && (
             <Paragraph ellipsis={{ rows: 1 }} style={{ marginBottom: 0, maxWidth: 360 }}>
               <FolderOpenOutlined /> {record.documentReference}
@@ -294,6 +295,15 @@ const ProjectManagement = () => {
                     <Option key={category} value={category}>{category}</Option>
                   ))}
                 </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="trade" label="Gewerk" rules={[{ required: true, message: 'Gewerk ist erforderlich' }]}>
+                <Select
+                  showSearch
+                  placeholder="Bitte auswählen"
+                  options={TRADE_OPTIONS.map((trade) => ({ value: trade, label: trade }))}
+                />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>

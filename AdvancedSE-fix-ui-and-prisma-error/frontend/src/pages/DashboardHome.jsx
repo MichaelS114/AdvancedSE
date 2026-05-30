@@ -12,12 +12,13 @@ const { Title, Text } = Typography;
 
 const DashboardHome = ({ title }) => {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { message } = App.useApp();
   const [activeProjects, setActiveProjects] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const isProfessionist = user?.role === 'PROFESSIONIST';
 
   const isPlaceholder = Boolean(title);
   const placeholderDueDates = [
@@ -30,7 +31,7 @@ const DashboardHome = ({ title }) => {
   ];
 
   const fetchActiveProjects = useCallback(async () => {
-    if (isPlaceholder) return;
+    if (isPlaceholder || isProfessionist) return;
 
     setProjectsLoading(true);
     try {
@@ -43,10 +44,10 @@ const DashboardHome = ({ title }) => {
     } finally {
       setProjectsLoading(false);
     }
-  }, [isPlaceholder, message, token]);
+  }, [isPlaceholder, isProfessionist, message, token]);
 
   const fetchDocuments = useCallback(async () => {
-    if (isPlaceholder) return;
+    if (isPlaceholder || isProfessionist) return;
 
     setDocumentsLoading(true);
     try {
@@ -62,7 +63,7 @@ const DashboardHome = ({ title }) => {
     } finally {
       setDocumentsLoading(false);
     }
-  }, [isPlaceholder, message, token]);
+  }, [isPlaceholder, isProfessionist, message, token]);
 
   useEffect(() => {
     // Initial load keeps the dashboard in sync with active project and document records.
@@ -142,6 +143,36 @@ const DashboardHome = ({ title }) => {
                   </List.Item>
                 )}
               />
+            </Card>
+          </Col>
+        </Row>
+      </div>
+    );
+  }
+
+  if (isProfessionist) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div>
+          <Text type="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0, fontSize: 12 }}>Dashboard</Text>
+          <Title level={2} style={{ margin: '4px 0 0' }}>Professionistenbereich</Title>
+          <Text type="secondary">Passende Projekte finden, Angebote stellen und Ihr Firmenprofil aktuell halten.</Text>
+        </div>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={12}>
+            <Card bordered={false} style={{ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }}>
+              <Statistic title="Nächster Schritt" value="Projekte prüfen" />
+              <Button type="primary" icon={<ProjectOutlined />} style={{ marginTop: 16 }} onClick={() => navigate('/offers')}>
+                Zu passenden Projekten
+              </Button>
+            </Card>
+          </Col>
+          <Col xs={24} md={12}>
+            <Card bordered={false} style={{ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }}>
+              <Statistic title="Profil" value="Firmenprofil" />
+              <Button icon={<FolderOpenOutlined />} style={{ marginTop: 16 }} onClick={() => navigate('/contractors')}>
+                Profil bearbeiten
+              </Button>
             </Card>
           </Col>
         </Row>

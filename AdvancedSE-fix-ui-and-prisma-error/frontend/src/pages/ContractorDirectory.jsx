@@ -15,9 +15,10 @@ const SORT_OPTIONS = [
 ];
 
 const ContractorDirectory = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { message } = App.useApp();
   const [form] = Form.useForm();
+  const [profileForm] = Form.useForm();
   const [contractors, setContractors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -25,6 +26,7 @@ const ContractorDirectory = () => {
   const [search, setSearch] = useState('');
   const [tradeFilter, setTradeFilter] = useState();
   const [sortValue, setSortValue] = useState('companyName:asc');
+  const isProfessionist = user?.role === 'PROFESSIONIST';
 
   const authHeaders = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -59,6 +61,7 @@ const ContractorDirectory = () => {
     const storedTrades = contractors.map((contractor) => contractor.trade).filter(Boolean);
     return Array.from(new Set([...TRADE_OPTIONS, ...storedTrades])).sort((a, b) => a.localeCompare(b));
   }, [contractors]);
+  const professionalProfile = isProfessionist ? contractors[0] || null : null;
 
   const openModal = (contractor = null) => {
     setEditingId(contractor?.id || null);
@@ -83,6 +86,21 @@ const ContractorDirectory = () => {
       await fetchContractors();
     } catch {
       message.error('Fehler beim Speichern des Handwerkers');
+    }
+  };
+
+  const saveProfessionalProfile = async (values) => {
+    try {
+      if (professionalProfile) {
+        await axios.put(`http://localhost:5001/api/contractors/${professionalProfile.id}`, values, { headers: authHeaders });
+        message.success('Firmenprofil aktualisiert');
+      } else {
+        await axios.post('http://localhost:5001/api/contractors', values, { headers: authHeaders });
+        message.success('Firmenprofil angelegt');
+      }
+      await fetchContractors();
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Fehler beim Speichern des Firmenprofils');
     }
   };
 
@@ -153,13 +171,87 @@ const ContractorDirectory = () => {
     }
   ];
 
+  if (isProfessionist) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div>
+          <Text type="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0, fontSize: 12 }}>Professionist</Text>
+          <Title level={2} style={{ margin: '4px 0 0' }}>Firmenprofil</Title>
+          <Text type="secondary">Dieses Profil wird für Ihre Angebote und Projektzuordnung nach Gewerk verwendet.</Text>
+        </div>
+
+        <Card bordered={false} loading={loading} style={{ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }}>
+          <Form
+            key={professionalProfile?.id || 'new-profile'}
+            form={profileForm}
+            layout="vertical"
+            initialValues={professionalProfile || {}}
+            onFinish={saveProfessionalProfile}
+          >
+            <Row gutter={16}>
+              <Col xs={24} md={12}>
+                <Form.Item name="companyName" label="Firmenname" rules={[{ required: true, message: 'Firmenname ist erforderlich' }]}>
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="trade" label="Gewerk" rules={[{ required: true, message: 'Gewerk ist erforderlich' }]}>
+                  <Select
+                    showSearch
+                    placeholder="Gewerk auswählen"
+                    options={availableTrades.map((value) => ({ value, label: value }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="contactPerson" label="Ansprechpartner">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="phone" label="Telefon">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="email" label="E-Mail">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="address" label="Adresse">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24}>
+                <Form.Item name="experience" label="Erfahrung / Spezialisierung">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24}>
+                <Form.Item name="notes" label="Notizen">
+                  <Input.TextArea rows={3} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <div style={{ textAlign: 'right' }}>
+              <Button type="primary" htmlType="submit">
+                {professionalProfile ? 'Firmenprofil speichern' : 'Firmenprofil anlegen'}
+              </Button>
+            </div>
+          </Form>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <Text type="secondary" style={{ textTransform: 'uppercase', letterSpacing: 0, fontSize: 12 }}>Handwerker-Verzeichnis</Text>
-          <Title level={2} style={{ margin: '4px 0 0' }}>Handwerker verwalten</Title>
-          <Text type="secondary">Firmen, Gewerke, Kontaktdaten und eigene Erfahrungen zentral verwalten.</Text>
+          <Title level={2} style={{ margin: '4px 0 0' }}>{isProfessionist ? 'Firmenprofil' : 'Handwerker verwalten'}</Title>
+          <Text type="secondary">{isProfessionist ? 'Dieses Profil wird für Ihre Angebote verwendet.' : 'Firmen, Gewerke, Kontaktdaten und eigene Erfahrungen zentral verwalten.'}</Text>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
           Handwerker anlegen
@@ -196,7 +288,7 @@ const ContractorDirectory = () => {
       </Card>
 
       <Modal
-        title={editingId ? 'Handwerker bearbeiten' : 'Handwerker anlegen'}
+        title={editingId ? (isProfessionist ? 'Firmenprofil bearbeiten' : 'Handwerker bearbeiten') : (isProfessionist ? 'Firmenprofil anlegen' : 'Handwerker anlegen')}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={null}

@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Layout, Card, Typography, Form, Input, Button, Alert, Radio, Row, Col } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined, IdcardOutlined } from '@ant-design/icons';
+import { Layout, Card, Typography, Form, Input, Button, Alert, Radio, Row, Col, Select } from 'antd';
+import { LockOutlined, MailOutlined, IdcardOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
+const TRADE_OPTIONS = ['Elektrik', 'Sanitär', 'Heizung', 'Dach', 'Fenster', 'Maler', 'Boden', 'Generalunternehmer'];
 
 const Register = () => {
+  const [form] = Form.useForm();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const selectedRole = Form.useWatch('role', form) || 'HAUSBESITZER';
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -44,6 +47,7 @@ const Register = () => {
         {success && <Alert message="Registrierung erfolgreich! Weiterleitung zum Login..." type="success" showIcon style={{ marginBottom: 24 }} />}
 
         <Form 
+          form={form}
           name="register_form" 
           onFinish={onFinish} 
           layout="vertical" 
@@ -91,6 +95,39 @@ const Register = () => {
               </Row>
             </Radio.Group>
           </Form.Item>
+
+          {selectedRole === 'PROFESSIONIST' && (
+            <>
+              <Form.Item name="companyName" label="Firmenname" rules={[{ required: true, message: 'Firmenname ist erforderlich' }]}>
+                <Input placeholder="Firmenname" />
+              </Form.Item>
+              <Form.Item name="trade" label="Gewerk" rules={[{ required: true, message: 'Gewerk ist erforderlich' }]}>
+                <Select
+                  showSearch
+                  placeholder="Gewerk auswählen"
+                  options={TRADE_OPTIONS.map((trade) => ({ value: trade, label: trade }))}
+                />
+              </Form.Item>
+              <Form.Item name="contactPerson" label="Ansprechpartner">
+                <Input placeholder="Ansprechpartner" />
+              </Form.Item>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="phone" label="Telefon">
+                    <Input placeholder="Telefon" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="contractorEmail" label="Firmen-E-Mail">
+                    <Input placeholder="office@firma.at" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="address" label="Firmenadresse">
+                <Input placeholder="Adresse" />
+              </Form.Item>
+            </>
+          )}
 
           <Form.Item style={{ marginBottom: 12 }}>
             <Button type="primary" htmlType="submit" block loading={loading} disabled={success}>

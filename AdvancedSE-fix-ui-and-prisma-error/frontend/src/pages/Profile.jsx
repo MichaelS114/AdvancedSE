@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, Form, Input, Button, Typography, App } from 'antd';
 import { LockOutlined } from '@ant-design/icons';
 import axios from 'axios';

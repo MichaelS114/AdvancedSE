@@ -7,11 +7,32 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
+const USER_ROLES = new Set(['HAUSBESITZER', 'PROFESSIONIST']);
+
+const normalizeContractorData = (body) => ({
+  companyName: body.companyName,
+  trade: body.trade,
+  contactPerson: body.contactPerson || null,
+  phone: body.phone || null,
+  email: body.contractorEmail || body.email || null,
+  address: body.address || null,
+  notes: body.notes || null,
+  experience: body.experience || null
+});
 
 // Register
 router.post('/register', async (req, res) => {
   try {
     const { firstName, lastName, username, email, password, role } = req.body;
+    const normalizedRole = role || 'HAUSBESITZER';
+
+    if (!USER_ROLES.has(normalizedRole)) {
+      return res.status(400).json({ error: 'Ungültige Rolle' });
+    }
+
+    if (normalizedRole === 'PROFESSIONIST' && (!req.body.companyName || !req.body.trade)) {
+      return res.status(400).json({ error: 'Firmenname und Gewerk sind für Professionisten erforderlich' });
+    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -27,16 +48,28 @@ router.post('/register', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        firstName,
-        lastName,
-        username,
-        email,
-        password: hashedPassword,
-        role: role || 'HAUSBESITZER'
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          firstName,
+          lastName,
+          username,
+          email,
+          password: hashedPassword,
+          role: normalizedRole
+        }
+      });
+
+      if (normalizedRole === 'PROFESSIONIST') {
+        await tx.contractor.create({
+          data: {
+            userId: createdUser.id,
+            ...normalizeContractorData(req.body)
+          }
+        });
       }
+
+      return createdUser;
     });
 
     res.status(201).json({ message: 'User registered successfully', userId: user.id });

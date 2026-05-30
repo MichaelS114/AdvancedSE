@@ -83,6 +83,10 @@ router.post('/', authenticateToken, async (req, res) => {
     if (!companyName || !trade) {
       return res.status(400).json({ error: 'Firmenname und Gewerk sind erforderlich' });
     }
+    if (req.user.role === 'PROFESSIONIST') {
+      const existing = await prisma.contractor.findFirst({ where: { userId: req.user.id } });
+      if (existing) return res.status(409).json({ error: 'Professionisten können nur ein Firmenprofil führen' });
+    }
 
     const contractor = await prisma.contractor.create({
       data: {
@@ -128,6 +132,10 @@ router.put('/:id', authenticateToken, async (req, res) => {
 // DELETE /api/contractors/:id
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
+    if (req.user.role === 'PROFESSIONIST') {
+      return res.status(403).json({ error: 'Das Firmenprofil kann nicht gelöscht werden' });
+    }
+
     const existingContractor = await prisma.contractor.findUnique({
       where: { id: req.params.id }
     });

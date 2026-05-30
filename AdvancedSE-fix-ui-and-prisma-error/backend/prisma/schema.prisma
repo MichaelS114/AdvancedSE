@@ -232,6 +232,7 @@ model Project {
   property                  Property?          @relation(fields: [propertyId], references: [id], onDelete: SetNull)
   title                     String
   category                  String             @default("Sanierung")
+  trade                     String?
   description               String?
   targetBudget              Float              @default(0)
   desiredStartDate          DateTime?
@@ -259,6 +260,7 @@ model Project {
   @@index([propertyId])
   @@index([status])
   @@index([category])
+  @@index([trade])
 }
 
 model Offer {
@@ -287,6 +289,7 @@ model Offer {
   @@index([projectId])
   @@index([contractorId])
   @@index([status])
+  @@unique([projectId, contractorId])
 }
 
 model OfferService {
